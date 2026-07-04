@@ -117,7 +117,6 @@ $v = "?v=1.0.0";
 
 	<!-- Custom scripts for all pages-->
 	<script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
-	<script src="/js/sb-admin-2.min.js"></script>
 	<!--
 		funciones.js: subconjunto genérico podado de intranet-xensei (ver
 		encabezado del archivo). Expone solicitudServidor/cargarLista/guardar/
@@ -242,6 +241,15 @@ $v = "?v=1.0.0";
 	<a class="scroll-to-top rounded" href="#page-top">
 		<i class="fas fa-angle-up"></i>
 	</a>
+
+	<!--
+		sb-admin-2.min.js registra el click del toggle del sidebar
+		(#sidebarToggleTop) directamente, sin $(document).ready(). Debe ir
+		después del <body> para que el botón ya exista en el DOM cuando el
+		script se ejecuta; si se carga en el <head> el .on('click', ...) se
+		ata a una selección vacía y el sidebar nunca abre en responsivo.
+	-->
+	<script src="/js/sb-admin-2.min.js"></script>
 
 	<script>
 		$(document).ready(function() {
