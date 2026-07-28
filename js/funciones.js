@@ -2365,3 +2365,14 @@ function inicializarFancyX(selector) {
 		dropdownParent: $(selector)
 	});
 }
+
+/**
+ * Al cerrar cualquier fancybox, vacia los inputs type="password" que haya
+ * dentro. Si se deja el valor capturado, el navegador detecta que un
+ * formulario con contrasena "desaparecio" del DOM (asi cierre un fancy sin
+ * guardar nada) y ofrece guardarla como si hubiera sido un login exitoso.
+ */
+$(document).on("beforeClose.fb", function (e, instance, current) {
+	if (current && current.$slide)
+		current.$slide.find("input[type='password']").val("");
+});
