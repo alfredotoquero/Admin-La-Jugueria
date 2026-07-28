@@ -8,8 +8,10 @@ Objetivo:
 - Reutilizar el estilo del fancy informativo de referencia ya validado en el sistema.
 - Definir una base clara para variante informativa y variante formulario.
 
-Referencia base (ejemplo generico):
-- `modulos/moduloEjemplo/modulos/submoduloEjemplo/detalle.php`
+Referencia base (fancys formulario reales ya validados en el sistema):
+- `modulos/usuarios/agregar.php`, `modulos/productos/agregar.php`, `modulos/cajeros/agregar.php`
+
+Nota: la variante "Fancy Informativo" (seccion 3) describe un patron de detalle de solo lectura con tarjetas de resumen; a la fecha no hay todavia un ejemplo real de este tipo en el codigo (`modulos/productos/`, `modulos/sucursales/`, `modulos/usuarios/`, `modulos/cortes/`, `modulos/cajeros/` son todos formulario o listado). Si vas a construir uno, valida el patron contra esta guia con criterio, no asumas que ya esta probado en produccion.
 
 ---
 
@@ -48,9 +50,12 @@ Referencia base (ejemplo generico):
 
 ## 2) Estructura tecnica base (comun)
 
-1. Includes minimos:
+1. Includes minimos (el fancy es un entrypoint AJAX independiente, no hereda nada de `home.php`):
 - `session.php`
-- `clase.php` del submodulo
+- `seguridad2.php`
+- `conn.php`
+- `generales.php` (si usa `formatearLabel`/`fecha_display`)
+- `clase.php` del modulo (estructura plana: `modulos/<modulo>/clase.php`, no `modulos/<modulo>/modulos/<submodulo>/clase.php`)
 
 2. Helper de salida:
 - Usar `formatearLabel($value)` con `htmlspecialchars`.
@@ -162,13 +167,13 @@ pero debe heredar la misma base del informativo con estos ajustes:
 - Inputs con espaciado uniforme y lectura clara.
 
 3. Select2:
-- Siempre scoped al contenedor del fancy:
+- **No inicializar manualmente.** `inicializarFancyX(selector)` (seccion 3.3) ya inicializa todos los `.select2` del fancy con `dropdownParent` scoped automaticamente. Solo agrega la clase `select2` al `<select>`:
 
-```js
-$("#fancyModalFormulario .select2").select2({
-  dropdownParent: $("#fancyModalFormulario")
-});
+```html
+<select class="form-control select2 requerido" name="idsucursal">...</select>
 ```
+
+- Escribir tu propio `.select2({...})` dentro del fancy (incluso pasando `dropdownParent` correctamente) es redundante y, si se hace con un selector global (`$(".select2")` sin scoping), es el bug clasico que rompe los `select2` de filtros de la pantalla padre al cerrar el modal. Ver `agent_manuals/agents_CRUD.md` seccion 10.
 
 4. Botones:
 - Alineados a la derecha.
@@ -176,12 +181,16 @@ $("#fancyModalFormulario .select2").select2({
 - Boton de accion principal con `id="btnAccion"`.
 
 5. Guardado:
-- `onclick="guardar('formX','modulo/modulos/submodulo')"`
-- Usar `validateForm` con `.requerido`.
+- `onclick="guardar('formX','<modulo>')"` (estructura plana; usar el string completo solo si el modulo tiene sub-ruta real).
+- Usar `validateForm` con `.requerido` (se aplica automaticamente dentro de `guardar()`).
 
 6. Reglas de validacion:
 - `select.requerido` con opcion default en `0`.
 - Montos con maximo 2 decimales en UI y backend.
+
+7. Campos de password que el admin fija para OTRO usuario/registro (no su propio login):
+- `autocomplete="off"` — nunca `autocomplete="new-password"` (dispara agresivamente el aviso nativo de "guardar contrasena" del navegador). Ver `agents_CRUD.md` seccion 8.1.
+- No es necesario limpiar el campo manualmente al cerrar el fancy: existe un handler global (`beforeClose.fb` en `js/funciones.js`) que ya vacia cualquier `input[type=password]` de cualquier fancy al cerrarse.
 
 ---
 
@@ -250,11 +259,12 @@ unicamente para el control de ancho responsivo scoped al ID del fancy.
 1. Crear `card` adicional envolviendo el root del modal.
 2. Usar colores hardcodeados cuando el tema debe ser por empresa.
 3. Usar CSS global para `.fancybox-content` o `.fancybox-button`.
-4. Inicializar select2 sin `dropdownParent` dentro del fancy.
+4. Inicializar select2 manualmente dentro del fancy (con o sin `dropdownParent`) — `inicializarFancyX(selector)` ya lo hace para todos los `.select2` del fancy; ver seccion 4.
 5. Mezclar logica de backend en decisiones puramente visuales del modal.
 6. Meter datos de resumen (folio/status) en header cuando el patron definido los ubica en tarjetas de informacion.
 7. Usar una sola tarjeta para toda la seccion informativa en fancys tipo detalle.
 8. Agregar la funcion `normalizarColorHex`, las variables `$color1`/`$color2` o un `<style>` con `--fancy-color-1`/`--fancy-color-2` dentro del archivo fancy. Los colores ya son globales.
+9. Usar `autocomplete="new-password"` en campos de password que fijan la credencial de otro usuario/registro — usar `autocomplete="off"` (ver seccion 4, punto 7).
 
 ---
 
