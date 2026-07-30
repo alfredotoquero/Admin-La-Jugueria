@@ -71,6 +71,18 @@ class Productos extends BaseClass {
 	}
 
 	/**
+	 * El selector/columna/filtro de sucursal solo se muestra si el usuario es
+	 * admin (sin importar cuantas sucursales haya) o si tiene mas de una
+	 * sucursal asignada; con una sola sucursal no tiene sentido mostrarlo.
+	 */
+	public function mostrarSelectorSucursal($idadministrador) {
+		if (($_SESSION["infoUsuario"]["admin"] ?? 0) == 1)
+			return true;
+
+		return count($this->getSucursalesUsuario($idadministrador)) > 1;
+	}
+
+	/**
 	 * Listado de productos visibles para el usuario actual: solo los
 	 * disponibles en alguna de sus sucursales (todas si es admin), con
 	 * filtro opcional a una sola sucursal.
@@ -79,6 +91,9 @@ class Productos extends BaseClass {
 		$sucursalesUsuario = array_column($this->getSucursalesUsuario($idadministrador), "idsucursal");
 		if (empty($sucursalesUsuario))
 			return array();
+
+		if ($idsucursalFiltro > 0 && !in_array($idsucursalFiltro, $sucursalesUsuario))
+			$idsucursalFiltro = 0;
 
 		$placeholders = implode(",", array_fill(0, count($sucursalesUsuario), "?"));
 		$query = "
