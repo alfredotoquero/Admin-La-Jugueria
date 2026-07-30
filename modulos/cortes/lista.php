@@ -43,6 +43,7 @@ $lista = $cortes->getCortes($idadministrador, $filtros);
 						<th class="text-right">Fondo Final</th>
 						<th class="text-center">Z</th>
 						<th class="text-center">Estado</th>
+						<th class="text-center">Acciones</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -50,6 +51,7 @@ $lista = $cortes->getCortes($idadministrador, $filtros);
 						$usuario = trim(($c["usuario_nombre"] ?? "") . " " . ($c["usuario_apaterno"] ?? "") . " " . ($c["usuario_amaterno"] ?? ""));
 						$usuario = ($usuario !== "") ? $usuario : ("Usuario #" . (int) $c["idusuario"]);
 						$abierto = ((int) $c["status"] === 0);
+						$puedeVerificar = ((int) $c["puede_verificar"] === 1);
 					?>
 						<tr>
 							<td><?= formatearLabel($c["sucursal"]) ?></td>
@@ -69,6 +71,31 @@ $lista = $cortes->getCortes($idadministrador, $filtros);
 									<span class="badge badge-warning">Abierto</span>
 								<?php } ?>
 							</td>
+							<td class="text-center">
+								<?php if ($puedeVerificar) { ?>
+									<a
+										href="javascript:;"
+										data-fancybox
+										data-options='{"src":"/modulos/cortes/verificar.php?idcorte=<?= (int) $c["idcorte"] ?>","type":"ajax","closeExisting":true,"clickSlide":false,"touch":false}'
+										class="btn btn-primary btn-sm"
+										data-toggle="tooltip"
+										title="Verificar"
+									>
+										<i class="fas fa-clipboard-check"></i>
+									</a>
+								<?php } ?>
+								<?php if ((int) $c["status"] === 1) { ?>
+									<a
+										href="/modulos/cortes/imprimir.php?idcorte=<?= (int) $c["idcorte"] ?>"
+										target="_blank"
+										class="btn btn-secondary btn-sm"
+										data-toggle="tooltip"
+										title="Imprimir"
+									>
+										<i class="fas fa-print"></i>
+									</a>
+								<?php } ?>
+							</td>
 						</tr>
 					<?php } ?>
 				</tbody>
@@ -83,6 +110,7 @@ $lista = $cortes->getCortes($idadministrador, $filtros);
 		if ($("#tablaCortes").length) {
 			$("#tablaCortes").DataTable({
 				order: [],
+				columnDefs: [{ orderable: false, targets: -1 }],
 				language: {
 					decimal: "",
 					emptyTable: "No hay datos disponibles",
@@ -109,5 +137,6 @@ $lista = $cortes->getCortes($idadministrador, $filtros);
 				},
 			});
 		}
+		$("[data-toggle='tooltip']").tooltip();
 	});
 </script>
