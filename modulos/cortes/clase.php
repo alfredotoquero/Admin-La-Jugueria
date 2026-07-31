@@ -180,6 +180,151 @@ class Cortes extends BaseClass {
 	}
 
 	/**
+	 * Listado de verificaciones (tcortesz) visible para el usuario actual:
+	 * mismo alcance y filtros que getCortes(), pero sobre el archivo de
+	 * cortes ya verificados.
+	 */
+	public function getVerificaciones($idadministrador, $filtros = array()) {
+		$sucursalesUsuario = array_column($this->getSucursalesUsuario($idadministrador), "idsucursal");
+		if (empty($sucursalesUsuario))
+			return array();
+
+		$idsucursalFiltro = (int) ($filtros["idsucursal"] ?? 0);
+		$idusuarioFiltro = (int) ($filtros["idusuario"] ?? 0);
+		$fechaDesde = trim($filtros["fechadesde"] ?? "");
+		$fechaHasta = trim($filtros["fechahasta"] ?? "");
+
+		$placeholders = implode(",", array_fill(0, count($sucursalesUsuario), "?"));
+		$params = $sucursalesUsuario;
+
+		$condiciones = "";
+		if ($idsucursalFiltro > 0) {
+			$condiciones .= " and cz.idsucursal = ?";
+			$params[] = $idsucursalFiltro;
+		}
+		if ($idusuarioFiltro > 0) {
+			$condiciones .= " and cz.idusuario = ?";
+			$params[] = $idusuarioFiltro;
+		}
+		if ($fechaDesde !== "") {
+			$condiciones .= " and cz.fechainicio >= ?";
+			$params[] = $fechaDesde;
+		}
+		if ($fechaHasta !== "") {
+			$condiciones .= " and cz.fechainicio <= ?";
+			$params[] = $fechaHasta;
+		}
+
+		$query = "
+		select
+			cz.idcorte,
+			cz.idsucursal,
+			s.nombre as sucursal,
+			cz.idusuario,
+			u.nombre as usuario_nombre,
+			u.apaterno as usuario_apaterno,
+			u.amaterno as usuario_amaterno,
+			cz.fechainicio,
+			cz.horainicio,
+			cz.fechafinal,
+			cz.horafinal,
+			cz.folioinicial,
+			cz.foliofinal,
+			cz.fondoinicial,
+			cz.gastos,
+			cz.ventas,
+			cz.fondofinal
+		from
+			tcortesz cz
+		inner join
+			tsucursales s on s.idsucursal = cz.idsucursal
+		left join
+			tusuarios u on u.idusuario = cz.idusuario
+		where
+			cz.idsucursal in ($placeholders)
+			$condiciones
+		order by
+			cz.fechainicio desc, cz.horainicio desc
+		";
+
+		return $this->claseQueries->fetchResults($query, $params);
+	}
+
+	/**
+	 * Verificacion (tcortesz) con los datos fiscales de su sucursal
+	 * (tsucursales.ticket_*), para la vista imprimible del resumen. Valida
+	 * que pertenezca a una sucursal permitida para el usuario actual.
+	 */
+	public function getVerificacionParaImprimir($idcorte, $idadministrador) {
+		$query = "
+		select
+			cz.idcorte, cz.idsucursal, cz.fechainicio, cz.horainicio, cz.fechafinal, cz.horafinal,
+			cz.folioinicial, cz.foliofinal, cz.fondoinicial, cz.gastos, cz.ventas, cz.fondofinal,
+			s.nombre as sucursal,
+			s.ticket_negocio, s.ticket_calle, s.ticket_numero, s.ticket_colonia, s.ticket_codigopostal,
+			s.ticket_ciudad, s.ticket_nombre, s.ticket_rfc, s.ticket_regimen
+		from
+			tcortesz cz
+		inner join
+			tsucursales s on s.idsucursal = cz.idsucursal
+		where
+			cz.idcorte = ?
+		";
+		$corte = $this->claseQueries->fetchResults($query, array($idcorte), false, "No se encontro la verificacion", false, false, "", false, false);
+
+		$sucursalesUsuario = array_column($this->getSucursalesUsuario($idadministrador), "idsucursal");
+		if (!in_array((int) $corte["idsucursal"], $sucursalesUsuario))
+			throw new Exception("No se encontro la verificacion.|Atencion|mensaje|warning", 1);
+
+		return $corte;
+	}
+
+	/**
+	 * Cuentas (tickets) de una verificacion con sus productos, para la
+	 * impresion de tickets. Valida que la verificacion pertenezca a una
+	 * sucursal permitida.
+	 */
+	public function getCuentasVerificacion($idcorte, $idadministrador) {
+		$this->getVerificacionParaImprimir($idcorte, $idadministrador);
+
+		$query = "select idcuenta, total, cambio, fecha, hora from tcuentasz where idcorte = ? order by idcuenta";
+		$cuentas = $this->claseQueries->fetchResults($query, array($idcorte));
+
+		if (empty($cuentas))
+			return $cuentas;
+
+		$idsCuentas = array_column($cuentas, "idcuenta");
+		$placeholders = implode(",", array_fill(0, count($idsCuentas), "?"));
+		$query = "
+		select
+			rp.idcuenta,
+			rp.cantidad,
+			rp.precio,
+			p.nombre as producto
+		from
+			trcuentaproductosz rp
+		inner join
+			tproductos p on p.idproducto = rp.idproducto
+		where
+			rp.idcuenta in ($placeholders)
+		order by
+			rp.idcuenta, rp.idcuentaproducto
+		";
+		$productos = $this->claseQueries->fetchResults($query, $idsCuentas);
+
+		$productosPorCuenta = array();
+		foreach ($productos as $producto) {
+			$productosPorCuenta[$producto["idcuenta"]][] = $producto;
+		}
+
+		foreach ($cuentas as &$cuenta) {
+			$cuenta["productos"] = $productosPorCuenta[$cuenta["idcuenta"]] ?? array();
+		}
+
+		return $cuentas;
+	}
+
+	/**
 	 * Un corte puntual, validando que su sucursal este dentro de las
 	 * permitidas para el usuario actual (si no, se trata como no encontrado).
 	 */
