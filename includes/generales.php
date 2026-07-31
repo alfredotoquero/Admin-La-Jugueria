@@ -379,7 +379,7 @@ function generarPeriodoEnLetra(string $fechaInicio, string $fechaFin, string $fo
 }
 
 function smart_number_format($numero, $digitos = 2) {
-	return ((fmod($numero, 1) == 0) ? (string)(int)$numero : number_format($numero, $digitos, '.', ''));
+	return ((fmod($numero, 1) == 0) ? number_format((int) $numero) : number_format($numero, $digitos));
 }
 
 /**

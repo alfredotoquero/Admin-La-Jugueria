@@ -1,20 +1,18 @@
 <?php
 include_once($_SERVER["DOCUMENT_ROOT"] . "/includes/generales.php");
-include_once($_SERVER["DOCUMENT_ROOT"] . "/modulos/cortes/clase.php");
+include_once($_SERVER["DOCUMENT_ROOT"] . "/modulos/ventas/clase.php");
 
 $idadministrador = $_SESSION["infoUsuario"]["idadministrador"];
-$cortesClase = new Cortes($con);
-$tieneAcceso = $cortesClase->tieneAccesoModulo($idadministrador);
-$sucursalesUsuario = ($tieneAcceso) ? $cortesClase->getSucursalesUsuario($idadministrador) : array();
-
-$vistaVerificaciones = (($_GET["modulo2"] ?? "") === "verificaciones");
+$ventasClase = new Ventas($con);
+$tieneAcceso = $ventasClase->tieneAccesoModulo($idadministrador);
+$sucursalesUsuario = ($tieneAcceso) ? $ventasClase->getSucursalesUsuario($idadministrador) : array();
 
 $fechaHastaDefault = date("Y-m-d");
 $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 ?>
 
 <?php if (!$tieneAcceso) { ?>
-	<div class="alert alert-warning">No tienes permiso para consultar cortes.</div>
+	<div class="alert alert-warning">No tienes permiso para consultar ventas.</div>
 <?php } else { ?>
 	<div class="card shadow-sm border-0 mb-4">
 
@@ -22,22 +20,15 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 			<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
 				<div class="mb-3 mb-md-0">
 					<h4 class="mb-1 font-weight-bold text-primary">
-						<i class="fas fa-<?= $vistaVerificaciones ? "clipboard-check" : "cash-register" ?> mr-2"></i>
-						<?= $vistaVerificaciones ? "Verificaciones" : "Cortes" ?>
+						<i class="fas fa-chart-line mr-2"></i>
+						Ventas
 					</h4>
 				</div>
 				<div class="d-flex align-items-center">
-					<?php if ($vistaVerificaciones) { ?>
-						<a href="/home.php?modulo1=cortes" class="btn btn-secondary shadow-sm">
-							<i class="fas fa-arrow-left"></i>
-							<span class="d-none d-md-inline ml-1">Volver a Cortes</span>
-						</a>
-					<?php } else { ?>
-						<a href="/home.php?modulo1=cortes&amp;modulo2=verificaciones" class="btn btn-primary shadow-sm">
-							<i class="fas fa-clipboard-check"></i>
-							<span class="d-none d-md-inline ml-1">Verificaciones</span>
-						</a>
-					<?php } ?>
+					<button type="button" class="btn btn-secondary shadow-sm" onclick="imprimirReporteVentas()">
+						<i class="fas fa-print"></i>
+						<span class="d-none d-md-inline ml-1">Imprimir</span>
+					</button>
 				</div>
 			</div>
 		</div>
@@ -81,8 +72,7 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 	<div id="divLista"></div>
 
 	<script>
-		var opcionesUsuarioCortes = [];
-		var vistaVerificaciones = <?= $vistaVerificaciones ? "true" : "false" ?>;
+		var opcionesUsuarioVentas = [];
 
 		$(document).ready(function () {
 			recargarLista();
@@ -97,34 +87,34 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 			var idsucursal = $("#filtroSucursal").val();
 
 			if (idsucursal == 0) {
-				opcionesUsuarioCortes = [];
-				reinicializarSelectUsuarioCortes();
+				opcionesUsuarioVentas = [];
+				reinicializarSelectUsuarioVentas();
 				return;
 			}
 
 			$.ajax({
 				type: "POST",
-				url: "/modulos/cortes/procesos.php",
+				url: "/modulos/ventas/procesos.php",
 				dataType: "json",
 				data: {
 					proceso: "getUsuariosSucursal",
 					idsucursal: idsucursal
 				},
 				success: function (resp) {
-					opcionesUsuarioCortes = (resp.result === "success") ? resp.data : [];
-					reinicializarSelectUsuarioCortes();
+					opcionesUsuarioVentas = (resp.result === "success") ? resp.data : [];
+					reinicializarSelectUsuarioVentas();
 				}
 			});
 		}
 
-		function reinicializarSelectUsuarioCortes() {
+		function reinicializarSelectUsuarioVentas() {
 			var $select = $("#filtroUsuario");
 			if ($select.hasClass("select2-hidden-accessible")) {
 				$select.select2("destroy");
 			}
 			$select.empty();
 			$select.append($("<option>", { value: "0", text: "TODOS" }));
-			opcionesUsuarioCortes.forEach(function (u) {
+			opcionesUsuarioVentas.forEach(function (u) {
 				$select.append($("<option>", { value: u.idusuario, text: u.nombre }));
 			});
 			$select.select2({ width: "100%" });
@@ -135,13 +125,24 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 			var idusuario = $("#filtroUsuario").val();
 			var fechadesde = $("#filtroFechaDesde").val();
 			var fechahasta = $("#filtroFechaHasta").val();
-			var url = vistaVerificaciones ? "/modulos/cortes/verificaciones_lista.php" : "/modulos/cortes/lista.php";
-			cargarLista(url, {
+			cargarLista("/modulos/ventas/lista.php", {
 				idsucursal: idsucursal,
 				idusuario: idusuario,
 				fechadesde: fechadesde,
 				fechahasta: fechahasta
 			}, "divLista");
+		}
+
+		function imprimirReporteVentas() {
+			var params = $.param({
+				idsucursal: $("#filtroSucursal").val(),
+				idusuario: $("#filtroUsuario").val(),
+				fechadesde: $("#filtroFechaDesde").val(),
+				fechahasta: $("#filtroFechaHasta").val(),
+				sucursalnombre: $("#filtroSucursal option:selected").text(),
+				usuarionombre: $("#filtroUsuario option:selected").text()
+			});
+			window.open("/modulos/ventas/imprimir.php?" + params, "_blank");
 		}
 	</script>
 <?php } ?>
