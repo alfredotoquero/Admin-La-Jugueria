@@ -28,6 +28,7 @@ $lista = $sucursales->getSucursales();
 						<th>Nombre</th>
 						<th>Razon Social</th>
 						<th>RFC</th>
+						<th class="text-right">Fondo de Caja</th>
 						<th class="text-right">Siguiente Folio</th>
 						<th>Registro</th>
 						<th class="text-center">Acciones</th>
@@ -39,6 +40,7 @@ $lista = $sucursales->getSucursales();
 							<td><?= formatearLabel($s["nombre"]) ?></td>
 							<td><?= formatearLabel($s["ticket_nombre"]) ?></td>
 							<td><?= formatearLabel($s["ticket_rfc"]) ?></td>
+							<td class="text-right">$<?= number_format((float) $s["fondoinicial"], 2) ?></td>
 							<td class="text-right"><?= number_format((int) $s["siguiente_folio"]) ?></td>
 							<td><?= formatearLabel(fecha_display($s["registro"])) ?></td>
 							<td class="text-center">
