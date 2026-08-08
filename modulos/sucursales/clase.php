@@ -82,7 +82,10 @@ class Sucursales extends BaseClass {
 			s.ticket_rfc,
 			s.ticket_regimen,
 			s.ticket_nombreimpresora,
-			coalesce(f.ultimofolio, 0) + 1 as siguiente_folio
+			coalesce(f.ultimofolio, 0) + 1 as siguiente_folio,
+			coalesce(f.ultimofolio_corte, 0) + 1 as siguiente_folio_corte,
+			coalesce(f.ultimofolio_cortez, 0) + 1 as siguiente_folio_cortez,
+			coalesce(f.ultimofolio_cuentaz, 0) + 1 as siguiente_folio_cuentaz
 		from
 			tsucursales s
 		left join
@@ -133,65 +136,120 @@ class Sucursales extends BaseClass {
 	}
 
 	/**
-	 * Valida el folio capturado y lo devuelve como "ultimofolio", que es lo que
-	 * espera tfolios: el punto de venta incrementa esa columna antes de asignar
-	 * el folio de la venta, asi que ultimofolio = siguiente folio - 1.
-	 *
-	 * @param array $post datos del formulario
-	 * @param int|null $idsucursal sucursal en edicion (null en alta)
-	 * @return int valor a guardar en tfolios.ultimofolio
+	 * Los cuatro folios administrables por sucursal. Cada definicion indica:
+	 * - campo:    nombre del input en el formulario
+	 * - columna:  contador en tfolios
+	 * - etiqueta: como se nombra en los mensajes de error
+	 * - piso:     consulta que devuelve el folio mas alto ya emitido en esa
+	 *             sucursal, para impedir que se retroceda por debajo de un
+	 *             documento ya impreso.
 	 */
-	private function resolverUltimoFolio($post, $idsucursal = null) {
-		$capturado = trim($post["siguiente_folio"] ?? "");
-
-		if ($capturado === "")
-			throw new Exception("El campo \"Siguiente folio\" es obligatorio.|Atencion|mensaje|warning", 1);
-
-		if (!ctype_digit($capturado))
-			throw new Exception("El siguiente folio debe ser un numero entero.|Atencion|mensaje|warning", 1);
-
-		$siguienteFolio = (int) $capturado;
-
-		if ($siguienteFolio < 1)
-			throw new Exception("El siguiente folio debe ser mayor o igual a 1.|Atencion|mensaje|warning", 1);
-
-		// El ticket del punto de venta rellena el folio a 7 digitos; arriba de
-		// ese tope el identificador impreso pierde el formato.
-		if ($siguienteFolio > self::FOLIO_MAXIMO)
-			throw new Exception("El siguiente folio no puede ser mayor a " . number_format(self::FOLIO_MAXIMO) . ".|Atencion|mensaje|warning", 1);
-
-		$ultimoFolio = $siguienteFolio - 1;
-
-		if (!empty($idsucursal)) {
-			// No se permite retroceder por debajo de un folio ya impreso: se
-			// duplicarian folios entre tickets de la misma sucursal.
-			$query = "select coalesce(max(folio), 0) as folio from tcuentas where idsucursal = ?";
-			$fila = $this->claseQueries->fetchResults($query, array($idsucursal), false);
-			$folioEmitido = (int) ($fila["folio"] ?? 0);
-
-			if ($ultimoFolio < $folioEmitido)
-				throw new Exception("Esta sucursal ya emitio el folio " . number_format($folioEmitido) . ". El siguiente folio no puede ser menor a " . number_format($folioEmitido + 1) . ".|Atencion|mensaje|warning", 1);
-		}
-
-		return $ultimoFolio;
+	private function definicionesFolios() {
+		return array(
+			array(
+				"campo" => "siguiente_folio",
+				"columna" => "ultimofolio",
+				"etiqueta" => "Siguiente folio de venta",
+				"piso" => "select coalesce(max(folio), 0) as folio from tcuentas where idsucursal = ?",
+			),
+			array(
+				"campo" => "siguiente_folio_corte",
+				"columna" => "ultimofolio_corte",
+				"etiqueta" => "Siguiente folio de corte",
+				"piso" => "select coalesce(max(folio), 0) as folio from tcortes where idsucursal = ?",
+			),
+			array(
+				"campo" => "siguiente_folio_cortez",
+				"columna" => "ultimofolio_cortez",
+				"etiqueta" => "Siguiente folio de verificacion",
+				"piso" => "select coalesce(max(folio), 0) as folio from tcortesz where idsucursal = ?",
+			),
+			array(
+				"campo" => "siguiente_folio_cuentaz",
+				"columna" => "ultimofolio_cuentaz",
+				"etiqueta" => "Siguiente folio de ticket verificado",
+				// tcuentasz no tiene idsucursal propio: se resuelve por tcortesz.
+				"piso" => "
+					select coalesce(max(cz.folio), 0) as folio
+					from tcuentasz cz
+					inner join tcortesz z on z.idcorte = cz.idcorte
+					where z.idsucursal = ?
+				",
+			),
+		);
 	}
 
 	/**
-	 * Alta o actualizacion del folio de la sucursal. Se usa upsert porque las
-	 * sucursales dadas de alta antes de esta version pueden no tener renglon en
-	 * tfolios.
+	 * Valida los folios capturados y los devuelve como "ultimo folio", que es lo
+	 * que almacena tfolios: quien emite el documento incrementa el contador
+	 * antes de asignarlo, asi que ultimo folio = siguiente folio - 1.
+	 *
+	 * @param array $post datos del formulario
+	 * @param int|null $idsucursal sucursal en edicion (null en alta)
+	 * @return array columna de tfolios => valor a guardar
 	 */
-	private function guardarFolioSucursal($idsucursal, $ultimoFolio) {
+	private function resolverUltimosFolios($post, $idsucursal = null) {
+		$valores = array();
+
+		foreach ($this->definicionesFolios() as $definicion) {
+			$capturado = trim($post[$definicion["campo"]] ?? "");
+
+			if ($capturado === "")
+				throw new Exception("El campo \"" . $definicion["etiqueta"] . "\" es obligatorio.|Atencion|mensaje|warning", 1);
+
+			if (!ctype_digit($capturado))
+				throw new Exception("El campo \"" . $definicion["etiqueta"] . "\" debe ser un numero entero.|Atencion|mensaje|warning", 1);
+
+			$siguienteFolio = (int) $capturado;
+
+			if ($siguienteFolio < 1)
+				throw new Exception("El campo \"" . $definicion["etiqueta"] . "\" debe ser mayor o igual a 1.|Atencion|mensaje|warning", 1);
+
+			// Los tickets rellenan el folio a 7 digitos; arriba de ese tope el
+			// identificador impreso pierde el formato.
+			if ($siguienteFolio > self::FOLIO_MAXIMO)
+				throw new Exception("El campo \"" . $definicion["etiqueta"] . "\" no puede ser mayor a " . number_format(self::FOLIO_MAXIMO) . ".|Atencion|mensaje|warning", 1);
+
+			$ultimoFolio = $siguienteFolio - 1;
+
+			if (!empty($idsucursal)) {
+				// No se permite retroceder por debajo de un folio ya impreso: se
+				// duplicarian folios entre documentos de la misma sucursal.
+				$fila = $this->claseQueries->fetchResults($definicion["piso"], array($idsucursal), false);
+				$folioEmitido = (int) ($fila["folio"] ?? 0);
+
+				if ($ultimoFolio < $folioEmitido)
+					throw new Exception("Esta sucursal ya emitio el folio " . number_format($folioEmitido) . " en \"" . $definicion["etiqueta"] . "\". El valor no puede ser menor a " . number_format($folioEmitido + 1) . ".|Atencion|mensaje|warning", 1);
+			}
+
+			$valores[$definicion["columna"]] = $ultimoFolio;
+		}
+
+		return $valores;
+	}
+
+	/**
+	 * Alta o actualizacion de los folios de la sucursal. Se usa upsert porque
+	 * las sucursales dadas de alta antes de esta version pueden no tener
+	 * renglon en tfolios.
+	 */
+	private function guardarFoliosSucursal($idsucursal, $valores) {
+		$columnas = array_keys($valores);
+		$asignaciones = array();
+		foreach ($columnas as $columna) {
+			$asignaciones[] = $columna . " = ?";
+		}
+
 		$query = "
 		insert into tfolios
-			(idsucursal, ultimofolio)
+			(idsucursal, " . implode(", ", $columnas) . ")
 		values
-			(?, ?)
+			(?, " . implode(", ", array_fill(0, count($columnas), "?")) . ")
 		on duplicate key update
-			ultimofolio = ?
+			" . implode(", ", $asignaciones) . "
 		";
-		$params = array($idsucursal, $ultimoFolio, $ultimoFolio);
-		$this->claseQueries->executeQuery($query, $params, false, "No se pudo guardar el folio de la sucursal");
+		$params = array_merge(array($idsucursal), array_values($valores), array_values($valores));
+		$this->claseQueries->executeQuery($query, $params, false, "No se pudieron guardar los folios de la sucursal");
 	}
 
 	public function agregarSucursal($post) {
@@ -202,7 +260,7 @@ class Sucursales extends BaseClass {
 		if ($this->existeNombreDuplicado($nombre))
 			throw new Exception("Ya existe una sucursal registrada con ese nombre.|Atencion|mensaje|warning", 1);
 
-		$ultimoFolio = $this->resolverUltimoFolio($post);
+		$ultimosFolios = $this->resolverUltimosFolios($post);
 
 		mysqli_begin_transaction($this->con);
 		try {
@@ -229,7 +287,7 @@ class Sucursales extends BaseClass {
 
 			// Sin este renglon el punto de venta registra las ventas con folio 0:
 			// su "update tfolios ... LAST_INSERT_ID(ultimofolio + 1)" no afecta filas.
-			$this->guardarFolioSucursal($idsucursal, $ultimoFolio);
+			$this->guardarFoliosSucursal($idsucursal, $ultimosFolios);
 
 			mysqli_commit($this->con);
 		} catch (Exception $e) {
@@ -257,7 +315,7 @@ class Sucursales extends BaseClass {
 		if ($this->existeNombreDuplicado($nombre, $idsucursal))
 			throw new Exception("Ya existe otra sucursal registrada con ese nombre.|Atencion|mensaje|warning", 1);
 
-		$ultimoFolio = $this->resolverUltimoFolio($post, $idsucursal);
+		$ultimosFolios = $this->resolverUltimosFolios($post, $idsucursal);
 
 		mysqli_begin_transaction($this->con);
 		try {
@@ -293,7 +351,7 @@ class Sucursales extends BaseClass {
 			);
 			$this->claseQueries->executeQuery($query, $params, false, "No se pudo actualizar la sucursal");
 
-			$this->guardarFolioSucursal($idsucursal, $ultimoFolio);
+			$this->guardarFoliosSucursal($idsucursal, $ultimosFolios);
 
 			mysqli_commit($this->con);
 		} catch (Exception $e) {

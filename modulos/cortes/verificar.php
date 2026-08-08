@@ -43,7 +43,7 @@ $cuentas = $cortes->getCuentasCorte($idcorte, $idadministrador);
 
 <div id="fancyVerificarCorte" class="fancy-x-root">
 	<div class="fancy-x-header">
-		<h4 class="fancy-x-title">Verificacion de Corte #<?= (int) $idcorte ?></h4>
+		<h4 class="fancy-x-title">Verificacion de Corte #<?= (int) $corte["folio"] ?></h4>
 		<div class="fancy-x-subtitle">Confirma cuales cuentas formaron parte de este corte.</div>
 	</div>
 
@@ -61,7 +61,7 @@ $cuentas = $cortes->getCuentasCorte($idcorte, $idadministrador);
 							<thead>
 								<tr>
 									<th width="30"></th>
-									<th class="text-center" width="50">ID</th>
+									<th class="text-center" width="70">Folio</th>
 									<th>Descripcion</th>
 									<th class="text-center" width="120">Fecha</th>
 									<th class="text-right" width="100">Total</th>
@@ -73,7 +73,7 @@ $cuentas = $cortes->getCuentasCorte($idcorte, $idadministrador);
 										<td class="text-center">
 											<input type="checkbox" name="idcuenta[]" class="chkCuenta" value="<?= (int) $cuenta["idcuenta"] ?>" data-total="<?= number_format((float) $cuenta["total"], 2, ".", "") ?>" checked onchange="calcularTotalVerificacion()">
 										</td>
-										<td class="text-center"><span class="fancy-x-row-id"><?= (int) $cuenta["idcuenta"] ?></span></td>
+										<td class="text-center"><span class="fancy-x-row-id"><?= str_pad((int) $cuenta["folio"], 7, "0", STR_PAD_LEFT) ?></span></td>
 										<td>
 											<?php foreach ($cuenta["productos"] as $producto) { ?>
 												<div><strong><?= (int) $producto["cantidad"] ?></strong> <?= formatearLabel($producto["producto"]) ?></div>

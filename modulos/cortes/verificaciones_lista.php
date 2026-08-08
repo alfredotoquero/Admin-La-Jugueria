@@ -32,6 +32,7 @@ $lista = $cortes->getVerificaciones($idadministrador, $filtros);
 			<table class="table table-hover mb-0 nowrap dataTable no-footer table-sm small" id="tablaVerificaciones">
 				<thead>
 					<tr>
+						<th>Folio</th>
 						<th>Sucursal</th>
 						<th>Usuario</th>
 						<th>Inicio</th>
@@ -50,6 +51,7 @@ $lista = $cortes->getVerificaciones($idadministrador, $filtros);
 						$usuario = ($usuario !== "") ? $usuario : ("Usuario #" . (int) $c["idusuario"]);
 					?>
 						<tr>
+							<td><?= (int) $c["folio"] ?></td>
 							<td><?= formatearLabel($c["sucursal"]) ?></td>
 							<td><?= formatearLabel($usuario) ?></td>
 							<td><?= formatearLabel(fecha_display($c["fechainicio"]) . " " . hora_formateada($c["horainicio"])) ?></td>
