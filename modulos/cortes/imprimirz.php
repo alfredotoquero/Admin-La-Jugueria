@@ -32,7 +32,7 @@ $montoEnLetras = strtoupper(num2letras(number_format((float) $corte["fondofinal"
 <html>
 <head>
 	<meta charset="utf-8">
-	<title>Verificacion de Corte #<?= (int) $corte["idcorte"] ?></title>
+	<title>Verificacion de Corte #<?= (int) $corte["folio"] ?></title>
 	<style>
 		body {
 			font-family: Arial, Helvetica, sans-serif;
@@ -104,7 +104,7 @@ $montoEnLetras = strtoupper(num2letras(number_format((float) $corte["fondofinal"
 
 		<hr class="separador">
 
-		<div class="centrado"><strong>VERIFICACION DE CORTE #<?= (int) $corte["idcorte"] ?></strong></div>
+		<div class="centrado"><strong>VERIFICACION DE CORTE #<?= (int) $corte["folio"] ?></strong></div>
 		<div class="centrado"><?= formatearLabel(fecha_display($corte["fechafinal"]) . " " . hora_formateada($corte["horafinal"])) ?></div>
 
 		<hr class="separador">

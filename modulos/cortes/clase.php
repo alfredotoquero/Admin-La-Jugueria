@@ -139,6 +139,7 @@ class Cortes extends BaseClass {
 		$query = "
 		select
 			c.idcorte,
+			c.folio,
 			c.idsucursal,
 			s.nombre as sucursal,
 			c.idusuario,
@@ -218,6 +219,7 @@ class Cortes extends BaseClass {
 		$query = "
 		select
 			cz.idcorte,
+			cz.folio,
 			cz.idsucursal,
 			s.nombre as sucursal,
 			cz.idusuario,
@@ -258,7 +260,7 @@ class Cortes extends BaseClass {
 	public function getVerificacionParaImprimir($idcorte, $idadministrador) {
 		$query = "
 		select
-			cz.idcorte, cz.idsucursal, cz.fechainicio, cz.horainicio, cz.fechafinal, cz.horafinal,
+			cz.idcorte, cz.folio, cz.idsucursal, cz.fechainicio, cz.horainicio, cz.fechafinal, cz.horafinal,
 			cz.folioinicial, cz.foliofinal, cz.fondoinicial, cz.gastos, cz.ventas, cz.fondofinal,
 			s.nombre as sucursal,
 			s.ticket_negocio, s.ticket_calle, s.ticket_numero, s.ticket_colonia, s.ticket_codigopostal,
@@ -287,7 +289,7 @@ class Cortes extends BaseClass {
 	public function getCuentasVerificacion($idcorte, $idadministrador) {
 		$this->getVerificacionParaImprimir($idcorte, $idadministrador);
 
-		$query = "select idcuenta, total, cambio, fecha, hora from tcuentasz where idcorte = ? order by idcuenta";
+		$query = "select idcuenta, folio, total, cambio, fecha, hora from tcuentasz where idcorte = ? order by idcuenta";
 		$cuentas = $this->claseQueries->fetchResults($query, array($idcorte));
 
 		if (empty($cuentas))
@@ -331,7 +333,7 @@ class Cortes extends BaseClass {
 	public function getCorte($idcorte, $idadministrador) {
 		$query = "
 		select
-			idcorte, idsucursal, idusuario, fechainicio, horainicio, fechafinal, horafinal,
+			idcorte, folio, idsucursal, idusuario, fechainicio, horainicio, fechafinal, horafinal,
 			folioinicial, foliofinal, fondoinicial, gastos, ventas, fondofinal, z, status
 		from
 			tcortes
@@ -354,7 +356,7 @@ class Cortes extends BaseClass {
 	public function getCorteParaImprimir($idcorte, $idadministrador) {
 		$query = "
 		select
-			c.idcorte, c.idsucursal, c.fechainicio, c.horainicio, c.fechafinal, c.horafinal,
+			c.idcorte, c.folio, c.idsucursal, c.fechainicio, c.horainicio, c.fechafinal, c.horafinal,
 			c.folioinicial, c.foliofinal, c.fondoinicial, c.gastos, c.ventas, c.fondofinal, c.status,
 			s.nombre as sucursal,
 			s.ticket_negocio, s.ticket_calle, s.ticket_numero, s.ticket_colonia, s.ticket_codigopostal,
@@ -385,7 +387,7 @@ class Cortes extends BaseClass {
 	public function getCuentasCorte($idcorte, $idadministrador) {
 		$this->getCorte($idcorte, $idadministrador);
 
-		$query = "select idcuenta, total, cambio, fecha, hora from tcuentas where idcorte = ? order by idcuenta";
+		$query = "select idcuenta, folio, total, cambio, fecha, hora from tcuentas where idcorte = ? order by idcuenta";
 		$cuentas = $this->claseQueries->fetchResults($query, array($idcorte));
 
 		if (empty($cuentas))
@@ -441,6 +443,48 @@ class Cortes extends BaseClass {
 	}
 
 	/**
+	 * Reserva un bloque de folios consecutivos del contador indicado para la
+	 * sucursal y devuelve el PRIMERO del bloque.
+	 *
+	 * El incremento es atomico en una sola sentencia y deja el ultimo folio del
+	 * bloque en LAST_INSERT_ID(), que es por conexion; dos procesos
+	 * concurrentes nunca reciben el mismo folio. Es el mismo patron que usa el
+	 * punto de venta al cobrar.
+	 *
+	 * @param int $idsucursal
+	 * @param string $columna contador en tfolios (valor interno, nunca del usuario)
+	 * @param int $cantidad folios a reservar
+	 * @return int primer folio del bloque
+	 */
+	private function consumirFolios($idsucursal, $columna, $cantidad) {
+		$columnasValidas = array("ultimofolio", "ultimofolio_corte", "ultimofolio_cortez", "ultimofolio_cuentaz");
+		if (!in_array($columna, $columnasValidas, true))
+			throw new Exception("Contador de folios invalido.|Atencion|mensaje|warning", 1);
+
+		$cantidad = (int) $cantidad;
+		if ($cantidad < 1)
+			throw new Exception("No hay documentos a los que asignar folio.|Atencion|mensaje|warning", 1);
+
+		$query = "update tfolios set $columna = LAST_INSERT_ID($columna + ?) where idsucursal = ?";
+		$afectadas = (int) $this->claseQueries->executeQuery($query, array($cantidad, $idsucursal), false, "No se pudo asignar el folio", false, false, "", true);
+
+		// Sin renglon en tfolios el UPDATE no afecta filas y no se asigna folio
+		// alguno. Se corta aqui para no guardar documentos con folio 0.
+		if ($afectadas < 1)
+			throw new Exception("La sucursal no tiene configurados sus folios. Configuralos en el modulo de Sucursales.|Atencion|mensaje|warning", 1);
+
+		// LAST_INSERT_ID() es por conexion y estamos en la misma sesion dentro
+		// de la transaccion, asi que no hay carrera posible con otro proceso.
+		$fila = $this->claseQueries->fetchResults("select LAST_INSERT_ID() as folio", array(), false, "No se pudo asignar el folio");
+		$ultimoFolio = (int) ($fila["folio"] ?? 0);
+
+		if ($ultimoFolio < $cantidad)
+			throw new Exception("No se pudo asignar el folio de la sucursal.|Atencion|mensaje|warning", 1);
+
+		return $ultimoFolio - $cantidad + 1;
+	}
+
+	/**
 	 * Verificacion de un corte: el admin confirma cuales cuentas (tickets)
 	 * realmente formaron parte del corte. Copia el corte y las cuentas
 	 * seleccionadas a las tablas *z (archivo de verificacion), recalcula
@@ -476,22 +520,29 @@ class Cortes extends BaseClass {
 
 		mysqli_begin_transaction($this->con);
 		try {
+			// Folios propios de la verificacion y de los tickets verificados,
+			// tomados del consecutivo configurado para la sucursal.
+			$folioCortez = $this->consumirFolios($corte["idsucursal"], "ultimofolio_cortez", 1);
+			$folioCuentazInicial = $this->consumirFolios($corte["idsucursal"], "ultimofolio_cuentaz", count($cuentasValidas));
+
 			$query = "
 			insert into tcortesz
-				(idusuario, idsucursal, fechainicio, horainicio, fechafinal, horafinal, folioinicial, foliofinal, fondoinicial, gastos, ventas, fondofinal)
+				(idusuario, folio, idsucursal, fechainicio, horainicio, fechafinal, horafinal, folioinicial, foliofinal, fondoinicial, gastos, ventas, fondofinal)
 			select
-				idusuario, ?, fechainicio, horainicio, fechafinal, horafinal, 0, 0, fondoinicial, gastos, 0, 0
+				idusuario, ?, ?, fechainicio, horainicio, fechafinal, horafinal, 0, 0, fondoinicial, gastos, 0, 0
 			from
 				tcortes
 			where
 				idcorte = ?
 			";
-			$idcorteN = $this->claseQueries->executeQuery($query, array($corte["idsucursal"], $idcorte), true, "No se pudo iniciar la verificacion");
+			$idcorteN = $this->claseQueries->executeQuery($query, array($folioCortez, $corte["idsucursal"], $idcorte), true, "No se pudo iniciar la verificacion");
 
 			$total = 0;
+			$folioCuentaz = $folioCuentazInicial;
 			foreach ($cuentasValidas as $cuenta) {
-				$query = "insert into tcuentasz (idcorte, total, cambio, fecha, hora) select ?, total, cambio, fecha, hora from tcuentas where idcuenta = ?";
-				$idcuentaN = $this->claseQueries->executeQuery($query, array($idcorteN, $cuenta["idcuenta"]), true, "No se pudo copiar la cuenta verificada");
+				$query = "insert into tcuentasz (idcorte, folio, total, cambio, fecha, hora) select ?, ?, total, cambio, fecha, hora from tcuentas where idcuenta = ?";
+				$idcuentaN = $this->claseQueries->executeQuery($query, array($idcorteN, $folioCuentaz, $cuenta["idcuenta"]), true, "No se pudo copiar la cuenta verificada");
+				$folioCuentaz++;
 
 				$total += (float) $cuenta["total"];
 
@@ -502,7 +553,10 @@ class Cortes extends BaseClass {
 				$this->claseQueries->executeQuery($query, array($idcuentaN, $cuenta["idcuenta"]), false, "No se pudo copiar los productos de la cuenta verificada");
 			}
 
-			$query = "select min(idcuenta) as folioinicial, max(idcuenta) as foliofinal from tcuentasz where idcorte = ?";
+			// Rango de folios de los tickets verificados. Antes se calculaba con
+			// min/max(idcuenta), que son las PK autoincrementales de las copias
+			// y no folios, asi que el rango reportado era incorrecto.
+			$query = "select min(folio) as folioinicial, max(folio) as foliofinal from tcuentasz where idcorte = ?";
 			$folios = $this->claseQueries->fetchResults($query, array($idcorteN), false);
 
 			$fondofinal = ((float) $corte["fondoinicial"] + $total) - (float) $corte["gastos"];

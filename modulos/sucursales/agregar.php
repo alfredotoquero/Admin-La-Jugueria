@@ -30,6 +30,9 @@ $sucursal = ($editando) ? $sucursales->getSucursal($id) : array(
 	"ticket_regimen" => "",
 	"ticket_nombreimpresora" => "",
 	"siguiente_folio" => 1,
+	"siguiente_folio_corte" => 1,
+	"siguiente_folio_cortez" => 1,
+	"siguiente_folio_cuentaz" => 1,
 );
 
 $proceso = ($editando) ? "editarSucursal" : "agregarSucursal";
@@ -121,14 +124,41 @@ $proceso = ($editando) ? "editarSucursal" : "agregarSucursal";
 			</div>
 
 			<div class="form-row">
-				<div class="form-group col-12 col-md-6">
+				<div class="form-group col-12">
 					<label>Nombre de la impresora <strong class="text-danger">*</strong></label>
 					<input type="text" name="ticket_nombreimpresora" class="form-control requerido mayusculas" value="<?= formatearLabel($sucursal["ticket_nombreimpresora"]) ?>">
 				</div>
+			</div>
+
+			<h6 class="font-weight-bold text-primary mt-2 mb-1">
+				<i class="fas fa-hashtag mr-1"></i>
+				Folios
+			</h6>
+			<p class="small text-muted mb-3">
+				Numero con el que se emitira el proximo documento de cada tipo en esta sucursal.
+				Cada sucursal lleva su consecutivo por separado y no se puede retroceder por
+				debajo de un folio ya emitido.
+			</p>
+
+			<div class="form-row">
 				<div class="form-group col-12 col-md-6">
-					<label>Siguiente folio <strong class="text-danger">*</strong></label>
+					<label>Venta (ticket) <strong class="text-danger">*</strong></label>
 					<input type="number" name="siguiente_folio" class="form-control requerido" min="1" max="9999999" step="1" value="<?= (int) $sucursal["siguiente_folio"] ?>">
-					<small class="form-text text-muted">Numero con el que se emitira el proximo ticket de esta sucursal.</small>
+				</div>
+				<div class="form-group col-12 col-md-6">
+					<label>Corte de caja <strong class="text-danger">*</strong></label>
+					<input type="number" name="siguiente_folio_corte" class="form-control requerido" min="1" max="9999999" step="1" value="<?= (int) $sucursal["siguiente_folio_corte"] ?>">
+				</div>
+			</div>
+
+			<div class="form-row">
+				<div class="form-group col-12 col-md-6">
+					<label>Verificacion de corte <strong class="text-danger">*</strong></label>
+					<input type="number" name="siguiente_folio_cortez" class="form-control requerido" min="1" max="9999999" step="1" value="<?= (int) $sucursal["siguiente_folio_cortez"] ?>">
+				</div>
+				<div class="form-group col-12 col-md-6">
+					<label>Ticket verificado <strong class="text-danger">*</strong></label>
+					<input type="number" name="siguiente_folio_cuentaz" class="form-control requerido" min="1" max="9999999" step="1" value="<?= (int) $sucursal["siguiente_folio_cuentaz"] ?>">
 				</div>
 			</div>
 

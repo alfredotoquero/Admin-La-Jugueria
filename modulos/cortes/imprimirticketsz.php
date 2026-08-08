@@ -31,7 +31,7 @@ try {
 <html>
 <head>
 	<meta charset="utf-8">
-	<title>Tickets de Verificacion #<?= (int) $corte["idcorte"] ?></title>
+	<title>Tickets de Verificacion #<?= (int) $corte["folio"] ?></title>
 	<style>
 		body {
 			font-family: Arial, Helvetica, sans-serif;
@@ -135,7 +135,7 @@ try {
 					<?= formatearLabel($corte["ticket_nombre"]) ?><br>
 					<?= formatearLabel($corte["ticket_rfc"]) ?><br>
 					<?= formatearLabel($corte["ticket_regimen"]) ?><br>
-					<?= formatearLabel(fecha_display($cuenta["fecha"]) . " " . hora_formateada($cuenta["hora"]) . " " . str_pad($cuenta["idcuenta"], 7, "0", STR_PAD_LEFT)) ?>
+					<?= formatearLabel(fecha_display($cuenta["fecha"]) . " " . hora_formateada($cuenta["hora"]) . " " . str_pad($cuenta["folio"], 7, "0", STR_PAD_LEFT)) ?>
 				</div>
 
 				<hr class="separador">

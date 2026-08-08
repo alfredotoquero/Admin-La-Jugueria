@@ -32,6 +32,7 @@ $lista = $cortes->getCortes($idadministrador, $filtros);
 			<table class="table table-hover mb-0 nowrap dataTable no-footer table-sm small" id="tablaCortes">
 				<thead>
 					<tr>
+						<th>Folio</th>
 						<th>Sucursal</th>
 						<th>Usuario</th>
 						<th>Inicio</th>
@@ -54,6 +55,7 @@ $lista = $cortes->getCortes($idadministrador, $filtros);
 						$puedeVerificar = ((int) $c["puede_verificar"] === 1);
 					?>
 						<tr>
+							<td><?= $abierto ? "-" : (int) $c["folio"] ?></td>
 							<td><?= formatearLabel($c["sucursal"]) ?></td>
 							<td><?= formatearLabel($usuario) ?></td>
 							<td><?= formatearLabel(fecha_display($c["fechainicio"]) . " " . hora_formateada($c["horainicio"])) ?></td>
