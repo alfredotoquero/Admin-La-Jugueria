@@ -6,6 +6,9 @@ class Sucursales extends BaseClass {
 	// El ticket del punto de venta imprime el folio rellenado a 7 digitos.
 	const FOLIO_MAXIMO = 9999999;
 
+	// Tope del fondo de caja para no desbordar el decimal de la columna.
+	const FONDO_MAXIMO = 999999.99;
+
 	private $con, $isDebugger;
 	protected $claseQueries;
 
@@ -53,6 +56,7 @@ class Sucursales extends BaseClass {
 			s.nombre,
 			s.ticket_nombre,
 			s.ticket_rfc,
+			s.fondoinicial,
 			s.registro,
 			coalesce(f.ultimofolio, 0) + 1 as siguiente_folio
 		from
@@ -82,6 +86,7 @@ class Sucursales extends BaseClass {
 			s.ticket_rfc,
 			s.ticket_regimen,
 			s.ticket_nombreimpresora,
+			s.fondoinicial,
 			coalesce(f.ultimofolio, 0) + 1 as siguiente_folio,
 			coalesce(f.ultimofolio_corte, 0) + 1 as siguiente_folio_corte,
 			coalesce(f.ultimofolio_cortez, 0) + 1 as siguiente_folio_cortez,
@@ -133,6 +138,30 @@ class Sucursales extends BaseClass {
 
 		if (!esRfcValido(trim($post["ticket_rfc"])))
 			throw new Exception("El RFC no tiene un formato valido.|Atencion|mensaje|warning", 1);
+	}
+
+	/**
+	 * Valida el fondo de caja capturado y lo devuelve normalizado a 2 decimales.
+	 * Es el monto con el que el punto de venta abre el corte de esta sucursal.
+	 */
+	private function resolverFondoInicial($post) {
+		$capturado = trim($post["fondoinicial"] ?? "");
+
+		if ($capturado === "")
+			throw new Exception("El campo \"Fondo de caja\" es obligatorio.|Atencion|mensaje|warning", 1);
+
+		if (!is_numeric($capturado))
+			throw new Exception("El campo \"Fondo de caja\" debe ser un monto valido.|Atencion|mensaje|warning", 1);
+
+		$fondo = (float) $capturado;
+
+		if ($fondo < 0)
+			throw new Exception("El campo \"Fondo de caja\" no puede ser negativo.|Atencion|mensaje|warning", 1);
+
+		if ($fondo > self::FONDO_MAXIMO)
+			throw new Exception("El campo \"Fondo de caja\" no puede ser mayor a $" . number_format(self::FONDO_MAXIMO, 2) . ".|Atencion|mensaje|warning", 1);
+
+		return number_format($fondo, 2, ".", "");
 	}
 
 	/**
@@ -260,15 +289,16 @@ class Sucursales extends BaseClass {
 		if ($this->existeNombreDuplicado($nombre))
 			throw new Exception("Ya existe una sucursal registrada con ese nombre.|Atencion|mensaje|warning", 1);
 
+		$fondoInicial = $this->resolverFondoInicial($post);
 		$ultimosFolios = $this->resolverUltimosFolios($post);
 
 		mysqli_begin_transaction($this->con);
 		try {
 			$query = "
 			insert into tsucursales
-				(nombre, ticket_negocio, ticket_calle, ticket_numero, ticket_colonia, ticket_codigopostal, ticket_ciudad, ticket_nombre, ticket_rfc, ticket_regimen, ticket_nombreimpresora, status)
+				(nombre, ticket_negocio, ticket_calle, ticket_numero, ticket_colonia, ticket_codigopostal, ticket_ciudad, ticket_nombre, ticket_rfc, ticket_regimen, ticket_nombreimpresora, fondoinicial, status)
 			values
-				(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+				(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 			";
 			$params = array(
 				$nombre,
@@ -282,6 +312,7 @@ class Sucursales extends BaseClass {
 				trim($post["ticket_rfc"]),
 				trim($post["ticket_regimen"]),
 				trim($post["ticket_nombreimpresora"]),
+				$fondoInicial,
 			);
 			$idsucursal = $this->claseQueries->executeQuery($query, $params, true, "No se pudo guardar la sucursal");
 
@@ -315,6 +346,7 @@ class Sucursales extends BaseClass {
 		if ($this->existeNombreDuplicado($nombre, $idsucursal))
 			throw new Exception("Ya existe otra sucursal registrada con ese nombre.|Atencion|mensaje|warning", 1);
 
+		$fondoInicial = $this->resolverFondoInicial($post);
 		$ultimosFolios = $this->resolverUltimosFolios($post, $idsucursal);
 
 		mysqli_begin_transaction($this->con);
@@ -331,7 +363,8 @@ class Sucursales extends BaseClass {
 				ticket_nombre = ?,
 				ticket_rfc = ?,
 				ticket_regimen = ?,
-				ticket_nombreimpresora = ?
+				ticket_nombreimpresora = ?,
+				fondoinicial = ?
 			where
 				idsucursal = ?
 			";
@@ -347,6 +380,7 @@ class Sucursales extends BaseClass {
 				trim($post["ticket_rfc"]),
 				trim($post["ticket_regimen"]),
 				trim($post["ticket_nombreimpresora"]),
+				$fondoInicial,
 				$idsucursal,
 			);
 			$this->claseQueries->executeQuery($query, $params, false, "No se pudo actualizar la sucursal");

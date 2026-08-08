@@ -29,6 +29,8 @@ $sucursal = ($editando) ? $sucursales->getSucursal($id) : array(
 	"ticket_rfc" => "",
 	"ticket_regimen" => "",
 	"ticket_nombreimpresora" => "",
+	// Mismo default que la columna en tsucursales.
+	"fondoinicial" => "1000.00",
 	"siguiente_folio" => 1,
 	"siguiente_folio_corte" => 1,
 	"siguiente_folio_cortez" => 1,
@@ -64,9 +66,21 @@ $proceso = ($editando) ? "editarSucursal" : "agregarSucursal";
 			<?php } ?>
 
 			<div class="form-row">
-				<div class="form-group col-12">
+				<div class="form-group col-12 col-md-7">
 					<label>Nombre de la sucursal <strong class="text-danger">*</strong></label>
 					<input type="text" name="nombre" class="form-control requerido mayusculas" value="<?= formatearLabel($sucursal["nombre"]) ?>">
+				</div>
+				<div class="form-group col-12 col-md-5">
+					<label>Fondo de caja <strong class="text-danger">*</strong></label>
+					<div class="input-group">
+						<div class="input-group-prepend">
+							<span class="input-group-text">$</span>
+						</div>
+						<input type="number" name="fondoinicial" class="form-control requerido" min="0" max="999999.99" step="0.01" value="<?= number_format((float) $sucursal["fondoinicial"], 2, ".", "") ?>">
+					</div>
+					<small class="form-text text-muted">
+						Monto con el que se abre el corte de caja en esta sucursal.
+					</small>
 				</div>
 			</div>
 
