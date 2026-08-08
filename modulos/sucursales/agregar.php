@@ -29,6 +29,7 @@ $sucursal = ($editando) ? $sucursales->getSucursal($id) : array(
 	"ticket_rfc" => "",
 	"ticket_regimen" => "",
 	"ticket_nombreimpresora" => "",
+	"siguiente_folio" => 1,
 );
 
 $proceso = ($editando) ? "editarSucursal" : "agregarSucursal";
@@ -120,9 +121,14 @@ $proceso = ($editando) ? "editarSucursal" : "agregarSucursal";
 			</div>
 
 			<div class="form-row">
-				<div class="form-group col-12">
+				<div class="form-group col-12 col-md-6">
 					<label>Nombre de la impresora <strong class="text-danger">*</strong></label>
 					<input type="text" name="ticket_nombreimpresora" class="form-control requerido mayusculas" value="<?= formatearLabel($sucursal["ticket_nombreimpresora"]) ?>">
+				</div>
+				<div class="form-group col-12 col-md-6">
+					<label>Siguiente folio <strong class="text-danger">*</strong></label>
+					<input type="number" name="siguiente_folio" class="form-control requerido" min="1" max="9999999" step="1" value="<?= (int) $sucursal["siguiente_folio"] ?>">
+					<small class="form-text text-muted">Numero con el que se emitira el proximo ticket de esta sucursal.</small>
 				</div>
 			</div>
 

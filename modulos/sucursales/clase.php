@@ -3,6 +3,9 @@ include_once($_SERVER["DOCUMENT_ROOT"] . "/controlador/clases/baseClass.php");
 
 class Sucursales extends BaseClass {
 
+	// El ticket del punto de venta imprime el folio rellenado a 7 digitos.
+	const FOLIO_MAXIMO = 9999999;
+
 	private $con, $isDebugger;
 	protected $claseQueries;
 
@@ -46,17 +49,20 @@ class Sucursales extends BaseClass {
 	public function getSucursales() {
 		$query = "
 		select
-			idsucursal,
-			nombre,
-			ticket_nombre,
-			ticket_rfc,
-			registro
+			s.idsucursal,
+			s.nombre,
+			s.ticket_nombre,
+			s.ticket_rfc,
+			s.registro,
+			coalesce(f.ultimofolio, 0) + 1 as siguiente_folio
 		from
-			tsucursales
+			tsucursales s
+		left join
+			tfolios f on f.idsucursal = s.idsucursal
 		where
-			status = 1
+			s.status = 1
 		order by
-			nombre
+			s.nombre
 		";
 		return $this->claseQueries->fetchResults($query);
 	}
@@ -64,22 +70,25 @@ class Sucursales extends BaseClass {
 	public function getSucursal($idsucursal) {
 		$query = "
 		select
-			idsucursal,
-			nombre,
-			ticket_negocio,
-			ticket_calle,
-			ticket_numero,
-			ticket_colonia,
-			ticket_codigopostal,
-			ticket_ciudad,
-			ticket_nombre,
-			ticket_rfc,
-			ticket_regimen,
-			ticket_nombreimpresora
+			s.idsucursal,
+			s.nombre,
+			s.ticket_negocio,
+			s.ticket_calle,
+			s.ticket_numero,
+			s.ticket_colonia,
+			s.ticket_codigopostal,
+			s.ticket_ciudad,
+			s.ticket_nombre,
+			s.ticket_rfc,
+			s.ticket_regimen,
+			s.ticket_nombreimpresora,
+			coalesce(f.ultimofolio, 0) + 1 as siguiente_folio
 		from
-			tsucursales
+			tsucursales s
+		left join
+			tfolios f on f.idsucursal = s.idsucursal
 		where
-			idsucursal = ?
+			s.idsucursal = ?
 		";
 		$params = array($idsucursal);
 		return $this->claseQueries->fetchResults($query, $params, false, "No se encontro la sucursal", false, false, "", false, false);
@@ -123,6 +132,68 @@ class Sucursales extends BaseClass {
 			throw new Exception("El RFC no tiene un formato valido.|Atencion|mensaje|warning", 1);
 	}
 
+	/**
+	 * Valida el folio capturado y lo devuelve como "ultimofolio", que es lo que
+	 * espera tfolios: el punto de venta incrementa esa columna antes de asignar
+	 * el folio de la venta, asi que ultimofolio = siguiente folio - 1.
+	 *
+	 * @param array $post datos del formulario
+	 * @param int|null $idsucursal sucursal en edicion (null en alta)
+	 * @return int valor a guardar en tfolios.ultimofolio
+	 */
+	private function resolverUltimoFolio($post, $idsucursal = null) {
+		$capturado = trim($post["siguiente_folio"] ?? "");
+
+		if ($capturado === "")
+			throw new Exception("El campo \"Siguiente folio\" es obligatorio.|Atencion|mensaje|warning", 1);
+
+		if (!ctype_digit($capturado))
+			throw new Exception("El siguiente folio debe ser un numero entero.|Atencion|mensaje|warning", 1);
+
+		$siguienteFolio = (int) $capturado;
+
+		if ($siguienteFolio < 1)
+			throw new Exception("El siguiente folio debe ser mayor o igual a 1.|Atencion|mensaje|warning", 1);
+
+		// El ticket del punto de venta rellena el folio a 7 digitos; arriba de
+		// ese tope el identificador impreso pierde el formato.
+		if ($siguienteFolio > self::FOLIO_MAXIMO)
+			throw new Exception("El siguiente folio no puede ser mayor a " . number_format(self::FOLIO_MAXIMO) . ".|Atencion|mensaje|warning", 1);
+
+		$ultimoFolio = $siguienteFolio - 1;
+
+		if (!empty($idsucursal)) {
+			// No se permite retroceder por debajo de un folio ya impreso: se
+			// duplicarian folios entre tickets de la misma sucursal.
+			$query = "select coalesce(max(folio), 0) as folio from tcuentas where idsucursal = ?";
+			$fila = $this->claseQueries->fetchResults($query, array($idsucursal), false);
+			$folioEmitido = (int) ($fila["folio"] ?? 0);
+
+			if ($ultimoFolio < $folioEmitido)
+				throw new Exception("Esta sucursal ya emitio el folio " . number_format($folioEmitido) . ". El siguiente folio no puede ser menor a " . number_format($folioEmitido + 1) . ".|Atencion|mensaje|warning", 1);
+		}
+
+		return $ultimoFolio;
+	}
+
+	/**
+	 * Alta o actualizacion del folio de la sucursal. Se usa upsert porque las
+	 * sucursales dadas de alta antes de esta version pueden no tener renglon en
+	 * tfolios.
+	 */
+	private function guardarFolioSucursal($idsucursal, $ultimoFolio) {
+		$query = "
+		insert into tfolios
+			(idsucursal, ultimofolio)
+		values
+			(?, ?)
+		on duplicate key update
+			ultimofolio = ?
+		";
+		$params = array($idsucursal, $ultimoFolio, $ultimoFolio);
+		$this->claseQueries->executeQuery($query, $params, false, "No se pudo guardar el folio de la sucursal");
+	}
+
 	public function agregarSucursal($post) {
 		$this->validarDatos($post);
 
@@ -131,26 +202,40 @@ class Sucursales extends BaseClass {
 		if ($this->existeNombreDuplicado($nombre))
 			throw new Exception("Ya existe una sucursal registrada con ese nombre.|Atencion|mensaje|warning", 1);
 
-		$query = "
-		insert into tsucursales
-			(nombre, ticket_negocio, ticket_calle, ticket_numero, ticket_colonia, ticket_codigopostal, ticket_ciudad, ticket_nombre, ticket_rfc, ticket_regimen, ticket_nombreimpresora, status)
-		values
-			(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-		";
-		$params = array(
-			$nombre,
-			trim($post["ticket_negocio"]),
-			trim($post["ticket_calle"]),
-			trim($post["ticket_numero"]),
-			trim($post["ticket_colonia"]),
-			trim($post["ticket_codigopostal"]),
-			trim($post["ticket_ciudad"]),
-			trim($post["ticket_nombre"]),
-			trim($post["ticket_rfc"]),
-			trim($post["ticket_regimen"]),
-			trim($post["ticket_nombreimpresora"]),
-		);
-		$this->claseQueries->executeQuery($query, $params, true, "No se pudo guardar la sucursal");
+		$ultimoFolio = $this->resolverUltimoFolio($post);
+
+		mysqli_begin_transaction($this->con);
+		try {
+			$query = "
+			insert into tsucursales
+				(nombre, ticket_negocio, ticket_calle, ticket_numero, ticket_colonia, ticket_codigopostal, ticket_ciudad, ticket_nombre, ticket_rfc, ticket_regimen, ticket_nombreimpresora, status)
+			values
+				(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+			";
+			$params = array(
+				$nombre,
+				trim($post["ticket_negocio"]),
+				trim($post["ticket_calle"]),
+				trim($post["ticket_numero"]),
+				trim($post["ticket_colonia"]),
+				trim($post["ticket_codigopostal"]),
+				trim($post["ticket_ciudad"]),
+				trim($post["ticket_nombre"]),
+				trim($post["ticket_rfc"]),
+				trim($post["ticket_regimen"]),
+				trim($post["ticket_nombreimpresora"]),
+			);
+			$idsucursal = $this->claseQueries->executeQuery($query, $params, true, "No se pudo guardar la sucursal");
+
+			// Sin este renglon el punto de venta registra las ventas con folio 0:
+			// su "update tfolios ... LAST_INSERT_ID(ultimofolio + 1)" no afecta filas.
+			$this->guardarFolioSucursal($idsucursal, $ultimoFolio);
+
+			mysqli_commit($this->con);
+		} catch (Exception $e) {
+			mysqli_rollback($this->con);
+			throw $e;
+		}
 
 		return array(
 			"result" => "success",
@@ -172,37 +257,49 @@ class Sucursales extends BaseClass {
 		if ($this->existeNombreDuplicado($nombre, $idsucursal))
 			throw new Exception("Ya existe otra sucursal registrada con ese nombre.|Atencion|mensaje|warning", 1);
 
-		$query = "
-		update tsucursales set
-			nombre = ?,
-			ticket_negocio = ?,
-			ticket_calle = ?,
-			ticket_numero = ?,
-			ticket_colonia = ?,
-			ticket_codigopostal = ?,
-			ticket_ciudad = ?,
-			ticket_nombre = ?,
-			ticket_rfc = ?,
-			ticket_regimen = ?,
-			ticket_nombreimpresora = ?
-		where
-			idsucursal = ?
-		";
-		$params = array(
-			$nombre,
-			trim($post["ticket_negocio"]),
-			trim($post["ticket_calle"]),
-			trim($post["ticket_numero"]),
-			trim($post["ticket_colonia"]),
-			trim($post["ticket_codigopostal"]),
-			trim($post["ticket_ciudad"]),
-			trim($post["ticket_nombre"]),
-			trim($post["ticket_rfc"]),
-			trim($post["ticket_regimen"]),
-			trim($post["ticket_nombreimpresora"]),
-			$idsucursal,
-		);
-		$this->claseQueries->executeQuery($query, $params, false, "No se pudo actualizar la sucursal");
+		$ultimoFolio = $this->resolverUltimoFolio($post, $idsucursal);
+
+		mysqli_begin_transaction($this->con);
+		try {
+			$query = "
+			update tsucursales set
+				nombre = ?,
+				ticket_negocio = ?,
+				ticket_calle = ?,
+				ticket_numero = ?,
+				ticket_colonia = ?,
+				ticket_codigopostal = ?,
+				ticket_ciudad = ?,
+				ticket_nombre = ?,
+				ticket_rfc = ?,
+				ticket_regimen = ?,
+				ticket_nombreimpresora = ?
+			where
+				idsucursal = ?
+			";
+			$params = array(
+				$nombre,
+				trim($post["ticket_negocio"]),
+				trim($post["ticket_calle"]),
+				trim($post["ticket_numero"]),
+				trim($post["ticket_colonia"]),
+				trim($post["ticket_codigopostal"]),
+				trim($post["ticket_ciudad"]),
+				trim($post["ticket_nombre"]),
+				trim($post["ticket_rfc"]),
+				trim($post["ticket_regimen"]),
+				trim($post["ticket_nombreimpresora"]),
+				$idsucursal,
+			);
+			$this->claseQueries->executeQuery($query, $params, false, "No se pudo actualizar la sucursal");
+
+			$this->guardarFolioSucursal($idsucursal, $ultimoFolio);
+
+			mysqli_commit($this->con);
+		} catch (Exception $e) {
+			mysqli_rollback($this->con);
+			throw $e;
+		}
 
 		return array(
 			"result" => "success",
