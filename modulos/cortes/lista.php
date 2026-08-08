@@ -42,7 +42,7 @@ $lista = $cortes->getCortes($idadministrador, $filtros);
 						<th class="text-right">Gastos</th>
 						<th class="text-right">Ventas</th>
 						<th class="text-right">Fondo Final</th>
-						<th class="text-center">Z</th>
+						<th class="text-center">Verificación</th>
 						<th class="text-center">Estado</th>
 						<th class="text-center">Acciones</th>
 					</tr>
@@ -65,7 +65,13 @@ $lista = $cortes->getCortes($idadministrador, $filtros);
 							<td class="text-right">$<?= formatearLabel(smart_number_format($c["gastos"])) ?></td>
 							<td class="text-right">$<?= formatearLabel(smart_number_format($c["ventas"])) ?></td>
 							<td class="text-right">$<?= formatearLabel(smart_number_format($c["fondofinal"])) ?></td>
-							<td class="text-center"><?= (int) $c["z"] ?></td>
+							<td class="text-center">
+									<?php if ((int) $c["z"] === 1) { ?>
+										<i class="fas fa-check text-success"></i>
+									<?php } else { ?>
+										<i class="fas fa-times text-danger"></i>
+									<?php } ?>
+								</td>
 							<td class="text-center">
 								<?php if ((int) $c["status"] === 1) { ?>
 									<span class="badge badge-success">Cerrado</span>
