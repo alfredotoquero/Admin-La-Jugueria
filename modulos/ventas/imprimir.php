@@ -14,6 +14,7 @@ if (!$ventas->tieneAccesoModulo($idadministrador)) {
 }
 
 $filtros = array(
+	"tipofiltro" => $_GET["tipofiltro"] ?? "rango",
 	"idsucursal" => $_GET["idsucursal"] ?? 0,
 	"idusuario" => $_GET["idusuario"] ?? 0,
 	"fechadesde" => $_GET["fechadesde"] ?? "",
@@ -130,10 +131,15 @@ foreach ($lista as $v) {
 			</tr>
 			<tr>
 				<td colspan="2">
-					<strong>Periodo:</strong>
-					<?= formatearLabel(($filtros["fechadesde"] !== "") ? fecha_display($filtros["fechadesde"]) : "-") ?>
-					al
-					<?= formatearLabel(($filtros["fechahasta"] !== "") ? fecha_display($filtros["fechahasta"]) : "-") ?>
+					<?php if ($filtros["tipofiltro"] == "corte") { ?>
+						<strong>Fecha de corte:</strong>
+						<?= formatearLabel(($filtros["fechadesde"] !== "") ? fecha_display($filtros["fechadesde"]) : "-") ?>
+					<?php } else { ?>
+						<strong>Periodo:</strong>
+						<?= formatearLabel(($filtros["fechadesde"] !== "") ? fecha_display($filtros["fechadesde"]) : "-") ?>
+						al
+						<?= formatearLabel(($filtros["fechahasta"] !== "") ? fecha_display($filtros["fechahasta"]) : "-") ?>
+					<?php } ?>
 				</td>
 			</tr>
 		</table>

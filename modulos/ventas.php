@@ -35,7 +35,7 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 
 		<div class="card-body bg-light">
 			<div class="row">
-				<div class="col-md-3 mb-3">
+				<div class="col-md-2 mb-3">
 					<label class="small text-muted font-weight-bold mb-1">Sucursal</label>
 					<select class="form-control select2" style="width: 100%;" id="filtroSucursal">
 						<option value="0">TODAS</option>
@@ -44,17 +44,24 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 						<?php } ?>
 					</select>
 				</div>
-				<div class="col-md-3 mb-3">
+				<div class="col-md-2 mb-3">
 					<label class="small text-muted font-weight-bold mb-1">Usuario</label>
 					<select class="form-control select2" style="width: 100%;" id="filtroUsuario">
 						<option value="0">TODOS</option>
 					</select>
 				</div>
 				<div class="col-md-2 mb-3">
-					<label class="small text-muted font-weight-bold mb-1">Fecha desde</label>
-					<input type="date" class="form-control" id="filtroFechaDesde" value="<?= $fechaDesdeDefault ?>">
+					<label class="small text-muted font-weight-bold mb-1">Filtrar por</label>
+					<select class="form-control select2" style="width: 100%;" id="filtroTipoFecha">
+						<option value="rango">RANGO DE FECHAS</option>
+						<option value="corte">FECHA DE CORTE</option>
+					</select>
 				</div>
 				<div class="col-md-2 mb-3">
+					<label class="small text-muted font-weight-bold mb-1" id="labelFechaDesde">Fecha desde</label>
+					<input type="date" class="form-control" id="filtroFechaDesde" value="<?= $fechaDesdeDefault ?>">
+				</div>
+				<div class="col-md-2 mb-3" id="contenedorFechaHasta">
 					<label class="small text-muted font-weight-bold mb-1">Fecha hasta</label>
 					<input type="date" class="form-control" id="filtroFechaHasta" value="<?= $fechaHastaDefault ?>">
 				</div>
@@ -77,11 +84,32 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 		$(document).ready(function () {
 			recargarLista();
 			$('.select2').select2();
+			aplicarTipoFiltroFecha();
 
 			$("#filtroSucursal").on("change", function () {
 				cargarUsuariosSucursal();
 			});
+
+			$("#filtroTipoFecha").on("change", function () {
+				aplicarTipoFiltroFecha();
+			});
 		});
+
+		/**
+		 * Muestra u oculta la fecha final segun el tipo de filtro seleccionado.
+		 * Con "corte" solo se usa una fecha (la de inicio del corte).
+		 */
+		function aplicarTipoFiltroFecha() {
+			var tipo = $("#filtroTipoFecha").val();
+
+			if (tipo === "corte") {
+				$("#contenedorFechaHasta").hide();
+				$("#labelFechaDesde").text("Fecha de corte");
+			} else {
+				$("#contenedorFechaHasta").show();
+				$("#labelFechaDesde").text("Fecha desde");
+			}
+		}
 
 		function cargarUsuariosSucursal() {
 			var idsucursal = $("#filtroSucursal").val();
@@ -121,11 +149,13 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 		}
 
 		function recargarLista() {
+			var tipofiltro = $("#filtroTipoFecha").val();
 			var idsucursal = $("#filtroSucursal").val();
 			var idusuario = $("#filtroUsuario").val();
 			var fechadesde = $("#filtroFechaDesde").val();
-			var fechahasta = $("#filtroFechaHasta").val();
+			var fechahasta = (tipofiltro === "corte") ? "" : $("#filtroFechaHasta").val();
 			cargarLista("/modulos/ventas/lista.php", {
+				tipofiltro: tipofiltro,
 				idsucursal: idsucursal,
 				idusuario: idusuario,
 				fechadesde: fechadesde,
@@ -134,11 +164,13 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 		}
 
 		function imprimirReporteVentas() {
+			var tipofiltro = $("#filtroTipoFecha").val();
 			var params = $.param({
+				tipofiltro: tipofiltro,
 				idsucursal: $("#filtroSucursal").val(),
 				idusuario: $("#filtroUsuario").val(),
 				fechadesde: $("#filtroFechaDesde").val(),
-				fechahasta: $("#filtroFechaHasta").val(),
+				fechahasta: (tipofiltro === "corte") ? "" : $("#filtroFechaHasta").val(),
 				sucursalnombre: $("#filtroSucursal option:selected").text(),
 				usuarionombre: $("#filtroUsuario option:selected").text()
 			});
