@@ -14,6 +14,7 @@ if (!$ventas->tieneAccesoModulo($idadministrador)) {
 }
 
 $filtros = array(
+	"tipofiltro" => $_POST["tipofiltro"] ?? "rango",
 	"idsucursal" => $_POST["idsucursal"] ?? 0,
 	"idusuario" => $_POST["idusuario"] ?? 0,
 	"fechadesde" => $_POST["fechadesde"] ?? "",

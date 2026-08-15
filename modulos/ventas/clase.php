@@ -104,8 +104,11 @@ class Ventas extends BaseClass {
 	 * Resumen de ventas por producto: cantidad vendida e importe total,
 	 * agrupado a partir de las lineas de venta (trcuentaproductos) de las
 	 * cuentas (tcuentas) de los cortes visibles para el usuario actual.
-	 * Filtros opcionales de sucursal, usuario y rango de fecha (sobre la
-	 * fecha de la cuenta, no la del corte).
+	 * Filtros opcionales de sucursal, usuario y fecha. El filtro de fecha
+	 * depende de "tipofiltro":
+	 *   - "rango" (default): rango sobre la fecha de la cuenta (cu.fecha).
+	 *   - "corte": solo las ventas de cortes que iniciaron en "fechadesde"
+	 *     (c.fechainicio), ignorando "fechahasta".
 	 */
 	public function getVentasPorProducto($idadministrador, $filtros = array()) {
 		$sucursalesUsuario = array_column($this->getSucursalesUsuario($idadministrador), "idsucursal");
@@ -114,6 +117,7 @@ class Ventas extends BaseClass {
 
 		$idsucursalFiltro = (int) ($filtros["idsucursal"] ?? 0);
 		$idusuarioFiltro = (int) ($filtros["idusuario"] ?? 0);
+		$tipoFiltro = (trim($filtros["tipofiltro"] ?? "") === "corte") ? "corte" : "rango";
 		$fechaDesde = trim($filtros["fechadesde"] ?? "");
 		$fechaHasta = trim($filtros["fechahasta"] ?? "");
 
@@ -129,13 +133,20 @@ class Ventas extends BaseClass {
 			$condiciones .= " and c.idusuario = ?";
 			$params[] = $idusuarioFiltro;
 		}
-		if ($fechaDesde !== "") {
-			$condiciones .= " and cu.fecha >= ?";
-			$params[] = $fechaDesde;
-		}
-		if ($fechaHasta !== "") {
-			$condiciones .= " and cu.fecha <= ?";
-			$params[] = $fechaHasta;
+		if ($tipoFiltro == "corte") {
+			if ($fechaDesde !== "") {
+				$condiciones .= " and c.fechainicio = ?";
+				$params[] = $fechaDesde;
+			}
+		} else {
+			if ($fechaDesde !== "") {
+				$condiciones .= " and cu.fecha >= ?";
+				$params[] = $fechaDesde;
+			}
+			if ($fechaHasta !== "") {
+				$condiciones .= " and cu.fecha <= ?";
+				$params[] = $fechaHasta;
+			}
 		}
 
 		$query = "
