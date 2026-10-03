@@ -398,6 +398,48 @@ class Usuarios extends BaseClass {
 		);
 	}
 
+	/**
+	 * Cambio de contrasena del propio usuario en sesion (menu de usuario de
+	 * home.php). No requiere la opcion "usuarios": cualquiera puede cambiar la
+	 * suya, pero solo la suya, y confirmando la contrasena actual.
+	 */
+	public function cambiarPasswordPropio($post) {
+		$idadministrador = $this->idSesion();
+		if ($idadministrador <= 0)
+			throw new Exception("No hay una sesion activa.|Atencion|mensaje|warning", 1);
+
+		$actual = $post["password_actual"] ?? "";
+		$nueva = $post["password_nueva"] ?? "";
+		$confirmacion = $post["password_confirmacion"] ?? "";
+
+		if ($actual === "" || $nueva === "" || $confirmacion === "")
+			throw new Exception("Captura tu contrasena actual, la nueva y su confirmacion.|Atencion|mensaje|warning", 1);
+
+		if (strlen($nueva) < 6)
+			throw new Exception("La nueva contrasena debe tener al menos 6 caracteres.|Atencion|mensaje|warning", 1);
+
+		if ($nueva !== $confirmacion)
+			throw new Exception("La nueva contrasena y su confirmacion no coinciden.|Atencion|mensaje|warning", 1);
+
+		if ($nueva === $actual)
+			throw new Exception("La nueva contrasena debe ser distinta a la actual.|Atencion|mensaje|warning", 1);
+
+		$query = "select idadministrador from tadministradores where idadministrador = ? and password = AES_ENCRYPT(?, '" . SEED_ADMINISTRADORES . "') and status = 1";
+		$fila = $this->claseQueries->fetchResults($query, array($idadministrador, $actual), false);
+		if (empty($fila))
+			throw new Exception("La contrasena actual no es correcta.|Atencion|mensaje|warning", 1);
+
+		$query = "update tadministradores set password = AES_ENCRYPT(?, '" . SEED_ADMINISTRADORES . "') where idadministrador = ?";
+		$this->claseQueries->executeQuery($query, array($nueva, $idadministrador), false, "No se pudo actualizar la contrasena");
+
+		return array(
+			"result" => "success",
+			"titulo" => "Listo",
+			"mensaje" => "Tu contrasena se actualizo correctamente.",
+			"texto" => "Tu contrasena se actualizo correctamente."
+		);
+	}
+
 	public function eliminarUsuario($post) {
 		$idadministrador = (int) ($post["id"] ?? 0);
 		if ($idadministrador <= 0)
