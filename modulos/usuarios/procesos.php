@@ -21,24 +21,48 @@ if (!$usuarios->tieneAccesoModulo($idadministrador)) {
 
 $proceso = $_POST["proceso"] ?? "";
 
-switch ($proceso) {
-	case "agregarUsuario":
-		$respuesta = $usuarios->agregarUsuario($_POST);
-		break;
-	case "editarUsuario":
-		$respuesta = $usuarios->editarUsuario($_POST);
-		break;
-	case "eliminarUsuario":
-		$respuesta = $usuarios->eliminarUsuario($_POST);
-		break;
-	default:
+try {
+	switch ($proceso) {
+		case "agregarUsuario":
+			$respuesta = $usuarios->agregarUsuario($_POST);
+			break;
+		case "editarUsuario":
+			$respuesta = $usuarios->editarUsuario($_POST);
+			break;
+		case "eliminarUsuario":
+			$respuesta = $usuarios->eliminarUsuario($_POST);
+			break;
+		default:
+			$respuesta = array(
+				"result" => "error",
+				"titulo" => "Error",
+				"mensaje" => "No se encontro el proceso solicitado.",
+				"texto" => "No se encontro el proceso solicitado.",
+			);
+			break;
+	}
+} catch (Exception $e) {
+	// Excepciones de negocio (validaciones, duplicados, permisos) se lanzan
+	// con el formato "mensaje|titulo|tipo|icono" y codigo 1; ver clase.php.
+	if ($e->getCode() === 1 && strpos($e->getMessage(), "|") !== false) {
+		list($mensaje, $titulo, $tipo, $icono) = array_pad(explode("|", $e->getMessage(), 4), 4, "");
+		$respuesta = array(
+			"result" => "error",
+			"titulo" => ($titulo !== "") ? $titulo : "Atencion",
+			"mensaje" => $mensaje,
+			"texto" => $mensaje,
+			"icono" => ($icono !== "") ? $icono : "warning",
+		);
+	} else {
+		file_put_contents($_SERVER["DOCUMENT_ROOT"] . "/txts/excepciones.txt", "usuarios/procesos.php ($proceso): " . $e->getMessage() . " -- " . date("Y-m-d H:i:s") . PHP_EOL, FILE_APPEND);
 		$respuesta = array(
 			"result" => "error",
 			"titulo" => "Error",
-			"mensaje" => "No se encontro el proceso solicitado.",
-			"texto" => "No se encontro el proceso solicitado.",
+			"mensaje" => "Ocurrio un error inesperado. Intenta de nuevo.",
+			"texto" => "Ocurrio un error inesperado. Intenta de nuevo.",
+			"icono" => "error",
 		);
-		break;
+	}
 }
 
 echo json_encode($respuesta);
