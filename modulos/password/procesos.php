@@ -2,35 +2,21 @@
 include($_SERVER["DOCUMENT_ROOT"] . "/includes/session.php");
 include_once($_SERVER["DOCUMENT_ROOT"] . "/includes/seguridad2.php");
 include($_SERVER["DOCUMENT_ROOT"] . "/includes/conn.php");
+include_once($_SERVER["DOCUMENT_ROOT"] . "/includes/generales.php");
 include($_SERVER["DOCUMENT_ROOT"] . "/modulos/usuarios/clase.php");
 
 header("Content-Type: application/json");
 
-$idadministrador = $_SESSION["infoUsuario"]["idadministrador"];
+// Sin validacion de modulo: cualquier usuario con sesion puede cambiar su
+// propia contrasena (la clase siempre usa el id de la sesion).
 $usuarios = new Usuarios($con);
-
-if (!$usuarios->tieneAccesoModulo($idadministrador)) {
-	echo json_encode(array(
-		"result" => "error",
-		"titulo" => "Sin permiso",
-		"mensaje" => "No tienes permiso para administrar usuarios.",
-		"texto" => "No tienes permiso para administrar usuarios."
-	));
-	exit;
-}
 
 $proceso = $_POST["proceso"] ?? "";
 
 try {
 	switch ($proceso) {
-		case "agregarUsuario":
-			$respuesta = $usuarios->agregarUsuario($_POST);
-			break;
-		case "editarUsuario":
-			$respuesta = $usuarios->editarUsuario($_POST);
-			break;
-		case "eliminarUsuario":
-			$respuesta = $usuarios->eliminarUsuario($_POST);
+		case "cambiarPassword":
+			$respuesta = $usuarios->cambiarPasswordPropio($_POST);
 			break;
 		default:
 			$respuesta = array(
@@ -42,8 +28,8 @@ try {
 			break;
 	}
 } catch (Exception $e) {
-	// Excepciones de negocio (validaciones, duplicados, permisos) se lanzan
-	// con el formato "mensaje|titulo|tipo|icono" y codigo 1; ver clase.php.
+	// Excepciones de negocio (validaciones) se lanzan con el formato
+	// "mensaje|titulo|tipo|icono" y codigo 1; ver modulos/usuarios/clase.php.
 	if ($e->getCode() === 1 && strpos($e->getMessage(), "|") !== false) {
 		list($mensaje, $titulo, $tipo, $icono) = array_pad(explode("|", $e->getMessage(), 4), 4, "");
 		$respuesta = array(
@@ -54,7 +40,7 @@ try {
 			"icono" => ($icono !== "") ? $icono : "warning",
 		);
 	} else {
-		file_put_contents($_SERVER["DOCUMENT_ROOT"] . "/txts/excepciones.txt", "usuarios/procesos.php ($proceso): " . $e->getMessage() . " -- " . date("Y-m-d H:i:s") . PHP_EOL, FILE_APPEND);
+		file_put_contents($_SERVER["DOCUMENT_ROOT"] . "/txts/excepciones.txt", "password/procesos.php ($proceso): " . $e->getMessage() . " -- " . date("Y-m-d H:i:s") . PHP_EOL, FILE_APPEND);
 		$respuesta = array(
 			"result" => "error",
 			"titulo" => "Error",

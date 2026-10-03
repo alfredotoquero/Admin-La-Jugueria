@@ -16,7 +16,16 @@ if (!$productos->tieneAccesoModulo($idadministrador)) {
 $id = (int) ($_GET["id"] ?? 0);
 $editando = ($id > 0);
 
-$producto = ($editando) ? $productos->getProducto($id, $idadministrador) : array(
+if ($editando) {
+	try {
+		$producto = $productos->getProducto($id, $idadministrador);
+	} catch (Exception $e) {
+		echo '<div class="alert alert-warning m-2 text-center">No se encontro el producto.</div>';
+		exit;
+	}
+}
+
+$producto = ($editando) ? $producto : array(
 	"idproducto" => 0,
 	"nombre" => "",
 	"descripcion" => "",
@@ -27,6 +36,11 @@ $producto = ($editando) ? $productos->getProducto($id, $idadministrador) : array
 );
 
 $sucursalesCatalogo = $productos->getSucursalesUsuario($idadministrador);
+
+// Producto compartido con sucursales fuera del alcance: los datos generales
+// se muestran de solo lectura (el servidor tampoco los modifica).
+$soloSucursales = ($editando && $productos->esCompartidoFueraDeAlcance($producto, $idadministrador));
+$atributoBloqueo = ($soloSucursales) ? "readonly" : "";
 
 $proceso = ($editando) ? "editarProducto" : "agregarProducto";
 ?>
@@ -82,17 +96,23 @@ $proceso = ($editando) ? "editarProducto" : "agregarProducto";
 			<input type="hidden" name="servicio" id="servicio" value="<?= (int) $producto["servicio"] ?>">
 			<input type="hidden" name="precio_variable" id="precio_variable" value="<?= (int) $producto["precio_variable"] ?>">
 
+			<?php if ($soloSucursales) { ?>
+				<div class="alert alert-info small">
+					Este producto tambien se vende en sucursales a las que no tienes acceso. Solo puedes modificar el precio y las unidades de tus sucursales.
+				</div>
+			<?php } ?>
+
 			<div class="form-row">
 				<div class="form-group col-12">
 					<label>Nombre <strong class="text-danger">*</strong></label>
-					<input type="text" name="nombre" class="form-control requerido mayusculas" value="<?= formatearLabel($producto["nombre"]) ?>">
+					<input type="text" name="nombre" class="form-control requerido mayusculas" value="<?= formatearLabel($producto["nombre"]) ?>" <?= $atributoBloqueo ?>>
 				</div>
 			</div>
 
 			<div class="form-row">
 				<div class="form-group col-12">
 					<label>Descripcion</label>
-					<textarea name="descripcion" class="form-control" rows="2"><?= formatearLabel($producto["descripcion"]) ?></textarea>
+					<textarea name="descripcion" class="form-control" rows="2" <?= $atributoBloqueo ?>><?= formatearLabel($producto["descripcion"]) ?></textarea>
 				</div>
 			</div>
 
@@ -100,8 +120,8 @@ $proceso = ($editando) ? "editarProducto" : "agregarProducto";
 				<div class="form-group col-12">
 					<label class="d-block">Tipo de producto</label>
 					<div class="btn-group segmentado-tipo" role="group">
-						<button type="button" class="btn btn-sm btnTipoProducto <?= ((int) $producto["servicio"] === 0) ? "active" : "" ?>" data-servicio="0">Producto</button>
-						<button type="button" class="btn btn-sm btnTipoProducto <?= ((int) $producto["servicio"] === 1) ? "active" : "" ?>" data-servicio="1">Servicio</button>
+						<button type="button" class="btn btn-sm btnTipoProducto <?= ((int) $producto["servicio"] === 0) ? "active" : "" ?>" data-servicio="0" <?= $soloSucursales ? "disabled" : "" ?>>Producto</button>
+						<button type="button" class="btn btn-sm btnTipoProducto <?= ((int) $producto["servicio"] === 1) ? "active" : "" ?>" data-servicio="1" <?= $soloSucursales ? "disabled" : "" ?>>Servicio</button>
 					</div>
 				</div>
 			</div>
@@ -109,12 +129,12 @@ $proceso = ($editando) ? "editarProducto" : "agregarProducto";
 			<div class="form-row">
 				<div class="form-group col-12 col-md-4">
 					<label>Precio general <strong class="text-danger" id="reqPrecioGeneral">*</strong></label>
-					<input type="number" step="0.01" min="0.01" name="precio" class="form-control requerido txtPrecioGeneral" value="<?= formatearLabel($producto["precio"]) ?>">
+					<input type="number" step="0.01" min="0.01" name="precio" class="form-control requerido txtPrecioGeneral" value="<?= formatearLabel($producto["precio"]) ?>" <?= $atributoBloqueo ?>>
 				</div>
 				<div class="form-group col-12 col-md-8">
 					<label>&nbsp;</label>
 					<div class="custom-control custom-checkbox mt-2">
-						<input type="checkbox" class="custom-control-input" id="chkPrecioVariable" <?= ((int) $producto["precio_variable"] === 1) ? "checked" : "" ?>>
+						<input type="checkbox" class="custom-control-input" id="chkPrecioVariable" <?= ((int) $producto["precio_variable"] === 1) ? "checked" : "" ?> <?= $soloSucursales ? "disabled" : "" ?>>
 						<label class="custom-control-label" for="chkPrecioVariable">Configurar precio distinto por sucursal</label>
 					</div>
 				</div>

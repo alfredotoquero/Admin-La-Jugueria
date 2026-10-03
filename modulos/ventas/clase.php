@@ -12,6 +12,7 @@ class Ventas extends BaseClass {
 		include_once($_SERVER["DOCUMENT_ROOT"] . "/controlador/clases/queries.php");
 		include_once($_SERVER["DOCUMENT_ROOT"] . "/config/environment.php");
 		$this->con = $con;
+		$this->refrescarSesionAdministrador($con);
 		$this->isDebugger = $_SESSION["infoUsuario"]["debugger"] ?? 0;
 		$this->claseQueries = new Queries($con, $pdo, $this->isDebugger);
 		register_shutdown_function(array($this, "handleFatalError"));

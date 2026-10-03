@@ -18,6 +18,7 @@ $tieneAcceso = $sucursalesClase->tieneAccesoModulo($idadministrador);
 						Sucursales
 					</h4>
 				</div>
+				<?php if ($sucursalesClase->esAdminSesion()) { ?>
 				<div class="d-flex align-items-center">
 					<a
 						href="javascript:;"
@@ -29,6 +30,7 @@ $tieneAcceso = $sucursalesClase->tieneAccesoModulo($idadministrador);
 						<span class="d-none d-md-inline">Agregar</span>
 					</a>
 				</div>
+				<?php } ?>
 			</div>
 		</div>
 	</div>

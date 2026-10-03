@@ -12,6 +12,7 @@ class Usuarios extends BaseClass {
 		include_once($_SERVER["DOCUMENT_ROOT"] . "/controlador/clases/queries.php");
 		include_once($_SERVER["DOCUMENT_ROOT"] . "/config/environment.php");
 		$this->con = $con;
+		$this->refrescarSesionAdministrador($con);
 		$this->isDebugger = $_SESSION["infoUsuario"]["debugger"] ?? 0;
 		$this->claseQueries = new Queries($con, $pdo, $this->isDebugger);
 		register_shutdown_function(array($this, "handleFatalError"));
@@ -50,6 +51,52 @@ class Usuarios extends BaseClass {
 		return !empty($fila);
 	}
 
+	private function esAdminSesion() {
+		return (($_SESSION["infoUsuario"]["admin"] ?? 0) == 1);
+	}
+
+	private function idSesion() {
+		return (int) ($_SESSION["infoUsuario"]["idadministrador"] ?? 0);
+	}
+
+	/**
+	 * Alcance de un usuario que no es admin pero tiene la opcion "usuarios"
+	 * (administracion delegada): solo gestiona usuarios que tampoco son admin,
+	 * que no son el mismo, y cuyas sucursales y opciones esten TODAS dentro de
+	 * las suyas. Asi no puede ver ni tocar cuentas de otras sucursales, tomar
+	 * la cuenta de un admin, ni darse (o dar) mas permisos de los que tiene.
+	 */
+	private function puedeGestionar($usuario) {
+		if ($this->esAdminSesion())
+			return true;
+
+		if ((int) $usuario["admin"] === 1 || (int) $usuario["idadministrador"] === $this->idSesion())
+			return false;
+
+		$misOpciones = array_column($this->getOpciones(), "idopcion");
+		$misSucursales = array_column($this->getSucursales(), "idsucursal");
+
+		return empty(array_diff($usuario["opciones"], $misOpciones)) && empty(array_diff($usuario["sucursales"], $misSucursales));
+	}
+
+	/**
+	 * Carga un usuario validando que este dentro del alcance de quien consulta.
+	 * Uno fuera de alcance se reporta como "no encontrado" para no revelar que
+	 * existe.
+	 */
+	private function getUsuarioGestionable($idadministrador) {
+		$query = "select idadministrador from tadministradores where idadministrador = ? and status = 1";
+		$fila = $this->claseQueries->fetchResults($query, array($idadministrador), false);
+		if (empty($fila))
+			throw new Exception("No se encontro el usuario.|Atencion|mensaje|warning", 1);
+
+		$usuario = $this->getUsuarioSinValidar($idadministrador);
+		if (!$this->puedeGestionar($usuario))
+			throw new Exception("No se encontro el usuario.|Atencion|mensaje|warning", 1);
+
+		return $usuario;
+	}
+
 	public function getUsuarios() {
 		$query = "
 		select
@@ -67,10 +114,24 @@ class Usuarios extends BaseClass {
 		order by
 			nombre, paterno
 		";
-		return $this->claseQueries->fetchResults($query);
+		$usuarios = $this->claseQueries->fetchResults($query);
+
+		if ($this->esAdminSesion())
+			return $usuarios;
+
+		$visibles = array();
+		foreach ($usuarios as $usuario) {
+			if ($this->puedeGestionar($this->getUsuarioSinValidar($usuario["idadministrador"])))
+				$visibles[] = $usuario;
+		}
+		return $visibles;
 	}
 
 	public function getUsuario($idadministrador) {
+		return $this->getUsuarioGestionable($idadministrador);
+	}
+
+	private function getUsuarioSinValidar($idadministrador) {
 		$query = "
 		select
 			idadministrador,
@@ -89,23 +150,70 @@ class Usuarios extends BaseClass {
 
 		$query = "select idopcion from tradministradoropciones where idadministrador = ?";
 		$opciones = $this->claseQueries->fetchResults($query, $params);
-		$usuario["opciones"] = array_column($opciones, "idopcion");
+		$usuario["opciones"] = array_map("intval", array_column($opciones, "idopcion"));
 
 		$query = "select idsucursal from tradminsucursales where idadministrador = ?";
 		$sucursales = $this->claseQueries->fetchResults($query, $params);
-		$usuario["sucursales"] = array_column($sucursales, "idsucursal");
+		$usuario["sucursales"] = array_map("intval", array_column($sucursales, "idsucursal"));
 
 		return $usuario;
 	}
 
+	/**
+	 * Opciones que quien esta en sesion puede asignar: todas si es admin, o
+	 * solo las que el mismo tiene.
+	 */
 	public function getOpciones() {
-		$query = "select idopcion, nombre from topciones order by nombre";
-		return $this->claseQueries->fetchResults($query);
+		if ($this->esAdminSesion()) {
+			$query = "select idopcion, nombre from topciones order by nombre";
+			return $this->claseQueries->fetchResults($query);
+		}
+
+		$query = "
+		select
+			o.idopcion,
+			o.nombre
+		from
+			topciones o
+		inner join
+			tradministradoropciones ao on ao.idopcion = o.idopcion
+		where
+			ao.idadministrador = ?
+		order by
+			o.nombre
+		";
+		return $this->claseQueries->fetchResults($query, array($this->idSesion()));
 	}
 
+	/**
+	 * Sucursales que quien esta en sesion puede asignar: todas las activas si
+	 * es admin, o solo las suyas.
+	 */
 	public function getSucursales() {
-		$query = "select idsucursal, nombre from tsucursales where status = 1 order by nombre";
-		return $this->claseQueries->fetchResults($query);
+		if ($this->esAdminSesion()) {
+			$query = "select idsucursal, nombre from tsucursales where status = 1 order by nombre";
+			return $this->claseQueries->fetchResults($query);
+		}
+
+		$query = "
+		select
+			s.idsucursal,
+			s.nombre
+		from
+			tsucursales s
+		inner join
+			tradminsucursales a on a.idsucursal = s.idsucursal
+		where
+			a.idadministrador = ? and
+			s.status = 1
+		order by
+			s.nombre
+		";
+		return $this->claseQueries->fetchResults($query, array($this->idSesion()));
+	}
+
+	public function puedeAsignarAdmin() {
+		return $this->esAdminSesion();
 	}
 
 	private function existeCorreoDuplicado($correo, $idadministrador = null) {
@@ -196,7 +304,8 @@ class Usuarios extends BaseClass {
 		$materno = trim($post["materno"] ?? "");
 		$correo = trim($post["correo"]);
 		$password = $post["password"] ?? "";
-		$admin = (($post["admin"] ?? "0") == "1") ? 1 : 0;
+		// Solo un admin puede crear administradores.
+		$admin = ($this->esAdminSesion() && ($post["admin"] ?? "0") == "1") ? 1 : 0;
 
 		if ($password === "" || strlen($password) < 6)
 			throw new Exception("La contrasena es obligatoria y debe tener al menos 6 caracteres.|Atencion|mensaje|warning", 1);
@@ -233,6 +342,8 @@ class Usuarios extends BaseClass {
 		if ($idadministrador <= 0)
 			throw new Exception("No se especifico el usuario a editar.|Atencion|mensaje|warning", 1);
 
+		$this->getUsuarioGestionable($idadministrador);
+
 		$this->validarDatosBase($post);
 
 		$nombre = trim($post["nombre"]);
@@ -240,7 +351,8 @@ class Usuarios extends BaseClass {
 		$materno = trim($post["materno"] ?? "");
 		$correo = trim($post["correo"]);
 		$password = trim($post["password"] ?? "");
-		$admin = (($post["admin"] ?? "0") == "1") ? 1 : 0;
+		// Solo un admin puede otorgar el rol de administrador.
+		$admin = ($this->esAdminSesion() && ($post["admin"] ?? "0") == "1") ? 1 : 0;
 
 		if ($password !== "" && strlen($password) < 6)
 			throw new Exception("La contrasena debe tener al menos 6 caracteres.|Atencion|mensaje|warning", 1);
@@ -286,6 +398,48 @@ class Usuarios extends BaseClass {
 		);
 	}
 
+	/**
+	 * Cambio de contrasena del propio usuario en sesion (menu de usuario de
+	 * home.php). No requiere la opcion "usuarios": cualquiera puede cambiar la
+	 * suya, pero solo la suya, y confirmando la contrasena actual.
+	 */
+	public function cambiarPasswordPropio($post) {
+		$idadministrador = $this->idSesion();
+		if ($idadministrador <= 0)
+			throw new Exception("No hay una sesion activa.|Atencion|mensaje|warning", 1);
+
+		$actual = $post["password_actual"] ?? "";
+		$nueva = $post["password_nueva"] ?? "";
+		$confirmacion = $post["password_confirmacion"] ?? "";
+
+		if ($actual === "" || $nueva === "" || $confirmacion === "")
+			throw new Exception("Captura tu contrasena actual, la nueva y su confirmacion.|Atencion|mensaje|warning", 1);
+
+		if (strlen($nueva) < 6)
+			throw new Exception("La nueva contrasena debe tener al menos 6 caracteres.|Atencion|mensaje|warning", 1);
+
+		if ($nueva !== $confirmacion)
+			throw new Exception("La nueva contrasena y su confirmacion no coinciden.|Atencion|mensaje|warning", 1);
+
+		if ($nueva === $actual)
+			throw new Exception("La nueva contrasena debe ser distinta a la actual.|Atencion|mensaje|warning", 1);
+
+		$query = "select idadministrador from tadministradores where idadministrador = ? and password = AES_ENCRYPT(?, '" . SEED_ADMINISTRADORES . "') and status = 1";
+		$fila = $this->claseQueries->fetchResults($query, array($idadministrador, $actual), false);
+		if (empty($fila))
+			throw new Exception("La contrasena actual no es correcta.|Atencion|mensaje|warning", 1);
+
+		$query = "update tadministradores set password = AES_ENCRYPT(?, '" . SEED_ADMINISTRADORES . "') where idadministrador = ?";
+		$this->claseQueries->executeQuery($query, array($nueva, $idadministrador), false, "No se pudo actualizar la contrasena");
+
+		return array(
+			"result" => "success",
+			"titulo" => "Listo",
+			"mensaje" => "Tu contrasena se actualizo correctamente.",
+			"texto" => "Tu contrasena se actualizo correctamente."
+		);
+	}
+
 	public function eliminarUsuario($post) {
 		$idadministrador = (int) ($post["id"] ?? 0);
 		if ($idadministrador <= 0)
@@ -294,9 +448,8 @@ class Usuarios extends BaseClass {
 		if ($idadministrador === (int) ($_SESSION["infoUsuario"]["idadministrador"] ?? 0))
 			throw new Exception("No puedes eliminar tu propia cuenta.|Atencion|mensaje|warning", 1);
 
-		$query = "select admin, status from tadministradores where idadministrador = ?";
+		$usuario = $this->getUsuarioGestionable($idadministrador);
 		$params = array($idadministrador);
-		$usuario = $this->claseQueries->fetchResults($query, $params, false, "No se encontro el usuario", false, false, "", false, false);
 
 		if ((int) $usuario["admin"] === 1 && $this->esUnicoAdminActivo($idadministrador))
 			throw new Exception("No puedes eliminar al unico administrador activo del sistema.|Atencion|mensaje|warning", 1);

@@ -26,6 +26,7 @@ class Sucursales extends BaseClass {
 		include_once($_SERVER["DOCUMENT_ROOT"] . "/controlador/clases/queries.php");
 		include_once($_SERVER["DOCUMENT_ROOT"] . "/config/environment.php");
 		$this->con = $con;
+		$this->refrescarSesionAdministrador($con);
 		$this->isDebugger = $_SESSION["infoUsuario"]["debugger"] ?? 0;
 		$this->claseQueries = new Queries($con, $pdo, $this->isDebugger);
 		register_shutdown_function(array($this, "handleFatalError"));
@@ -57,6 +58,41 @@ class Sucursales extends BaseClass {
 		return !empty($fila);
 	}
 
+	public function esAdminSesion() {
+		return (($_SESSION["infoUsuario"]["admin"] ?? 0) == 1);
+	}
+
+	/**
+	 * Ids de las sucursales que puede ver/editar quien esta en sesion: todas
+	 * si es admin, o solo las asignadas en tradminsucursales.
+	 */
+	private function getIdsSucursalesPermitidas() {
+		if ($this->esAdminSesion())
+			return null;
+
+		$query = "select idsucursal from tradminsucursales where idadministrador = ?";
+		$filas = $this->claseQueries->fetchResults($query, array((int) ($_SESSION["infoUsuario"]["idadministrador"] ?? 0)));
+		return array_map("intval", array_column($filas, "idsucursal"));
+	}
+
+	/**
+	 * Rechaza (como "no encontrada", para no revelar que existe) una sucursal
+	 * fuera del alcance del usuario.
+	 */
+	private function validarAlcanceSucursal($idsucursal) {
+		$permitidas = $this->getIdsSucursalesPermitidas();
+		if ($permitidas !== null && !in_array((int) $idsucursal, $permitidas, true))
+			throw new Exception("No se encontro la sucursal.|Atencion|mensaje|warning", 1);
+	}
+
+	/**
+	 * Alta y baja de sucursales afectan a todo el sistema: solo admin.
+	 */
+	private function validarEsAdmin() {
+		if (!$this->esAdminSesion())
+			throw new Exception("Solo un administrador puede dar de alta o eliminar sucursales.|Sin permiso|mensaje|warning", 1);
+	}
+
 	public function getSucursales() {
 		$query = "
 		select
@@ -76,10 +112,20 @@ class Sucursales extends BaseClass {
 		order by
 			s.nombre
 		";
-		return $this->claseQueries->fetchResults($query);
+		$lista = $this->claseQueries->fetchResults($query);
+
+		$permitidas = $this->getIdsSucursalesPermitidas();
+		if ($permitidas === null)
+			return $lista;
+
+		return array_values(array_filter($lista, function ($sucursal) use ($permitidas) {
+			return in_array((int) $sucursal["idsucursal"], $permitidas, true);
+		}));
 	}
 
 	public function getSucursal($idsucursal) {
+		$this->validarAlcanceSucursal($idsucursal);
+
 		$query = "
 		select
 			s.idsucursal,
@@ -303,6 +349,7 @@ class Sucursales extends BaseClass {
 	}
 
 	public function agregarSucursal($post) {
+		$this->validarEsAdmin();
 		$this->validarDatos($post);
 
 		$nombre = trim($post["nombre"]);
@@ -361,6 +408,8 @@ class Sucursales extends BaseClass {
 		$idsucursal = (int) ($post["id"] ?? 0);
 		if ($idsucursal <= 0)
 			throw new Exception("No se especifico la sucursal a editar.|Atencion|mensaje|warning", 1);
+
+		$this->validarAlcanceSucursal($idsucursal);
 
 		$this->validarDatos($post);
 
@@ -428,6 +477,8 @@ class Sucursales extends BaseClass {
 	}
 
 	public function eliminarSucursal($post) {
+		$this->validarEsAdmin();
+
 		$idsucursal = (int) ($post["id"] ?? 0);
 		if ($idsucursal <= 0)
 			throw new Exception("No se especifico la sucursal a eliminar.|Atencion|mensaje|warning", 1);

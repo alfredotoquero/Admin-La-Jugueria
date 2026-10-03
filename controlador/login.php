@@ -28,7 +28,9 @@ if (mysqli_num_rows($result) == 1) {
 
 	if ($_SESSION['infoUsuario']['status'] == 1) {
 		if ($_SESSION["authToken"] == $_POST["authToken"]) {
-			// Login correcto.
+			// Login correcto. Se regenera el id de sesion para que un id
+			// fijado antes del login (fijacion de sesion) no quede autenticado.
+			session_regenerate_id(true);
 			$_SESSION["ultimo_acceso"] = date("Y-n-j H:i:s");
 			unset($_SESSION["authToken"]);
 			$result = "success";
