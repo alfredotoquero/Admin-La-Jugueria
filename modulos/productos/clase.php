@@ -12,6 +12,7 @@ class Productos extends BaseClass {
 		include_once($_SERVER["DOCUMENT_ROOT"] . "/controlador/clases/queries.php");
 		include_once($_SERVER["DOCUMENT_ROOT"] . "/config/environment.php");
 		$this->con = $con;
+		$this->refrescarSesionAdministrador($con);
 		$this->isDebugger = $_SESSION["infoUsuario"]["debugger"] ?? 0;
 		$this->claseQueries = new Queries($con, $pdo, $this->isDebugger);
 		register_shutdown_function(array($this, "handleFatalError"));
@@ -147,7 +148,8 @@ class Productos extends BaseClass {
 		from
 			tproductos
 		where
-			idproducto = ?
+			idproducto = ? and
+			status = 1
 		";
 		$params = array($idproducto);
 		$producto = $this->claseQueries->fetchResults($query, $params, false, "No se encontro el producto", false, false, "", false, false);
@@ -162,7 +164,30 @@ class Productos extends BaseClass {
 			);
 		}
 
+		// Un no-admin solo ve productos disponibles en alguna de sus sucursales;
+		// cualquier otro se reporta como "no encontrado" para no revelar que existe.
+		if (($_SESSION["infoUsuario"]["admin"] ?? 0) != 1) {
+			$sucursalesUsuario = array_map("intval", array_column($this->getSucursalesUsuario($idadministrador), "idsucursal"));
+			if (empty(array_intersect(array_keys($producto["sucursales"]), $sucursalesUsuario)))
+				throw new Exception("No se encontro el producto.|Atencion|mensaje|warning", 1);
+		}
+
 		return $producto;
+	}
+
+	/**
+	 * True si el producto tambien esta asignado a sucursales fuera del alcance
+	 * del usuario. Nombre, descripcion, precio general, tipo y precio variable
+	 * viven en tproductos y los ven TODAS las sucursales, asi que en ese caso
+	 * el usuario solo puede editar lo de sus propias sucursales (precio por
+	 * sucursal y unidades).
+	 */
+	public function esCompartidoFueraDeAlcance($producto, $idadministrador) {
+		if (($_SESSION["infoUsuario"]["admin"] ?? 0) == 1)
+			return false;
+
+		$sucursalesUsuario = array_map("intval", array_column($this->getSucursalesUsuario($idadministrador), "idsucursal"));
+		return !empty(array_diff(array_keys($producto["sucursales"]), $sucursalesUsuario));
 	}
 
 	private function getSucursalesDeProducto($idproducto) {
@@ -311,17 +336,30 @@ class Productos extends BaseClass {
 		if ($idproducto <= 0)
 			throw new Exception("No se especifico el producto a editar.|Atencion|mensaje|warning", 1);
 
-		$servicio = (($post["servicio"] ?? "0") == "1") ? 1 : 0;
-		$precioVariable = (($post["precio_variable"] ?? "0") == "1") ? 1 : 0;
+		// Valida que el producto exista y este dentro del alcance del usuario.
+		$productoActual = $this->getProducto($idproducto, $idadministrador);
 
-		$this->validarDatosBase($post, $precioVariable);
+		if ($this->esCompartidoFueraDeAlcance($productoActual, $idadministrador)) {
+			// Los datos globales se conservan tal cual estan en BD: cambiarlos
+			// afectaria a sucursales a las que el usuario no tiene acceso.
+			$servicio = (int) $productoActual["servicio"];
+			$precioVariable = (int) $productoActual["precio_variable"];
+			$nombre = $productoActual["nombre"];
+			$descripcion = $productoActual["descripcion"];
+			$precio = $productoActual["precio"];
+		} else {
+			$servicio = (($post["servicio"] ?? "0") == "1") ? 1 : 0;
+			$precioVariable = (($post["precio_variable"] ?? "0") == "1") ? 1 : 0;
 
-		$nombre = trim($post["nombre"]);
-		$descripcion = trim($post["descripcion"] ?? "");
-		$precio = $precioVariable ? null : round((float) $post["precio"], 2);
+			$this->validarDatosBase($post, $precioVariable);
 
-		if ($this->existeNombreDuplicado($nombre, $idproducto))
-			throw new Exception("Ya existe otro producto registrado con ese nombre.|Atencion|mensaje|warning", 1);
+			$nombre = trim($post["nombre"]);
+			$descripcion = trim($post["descripcion"] ?? "");
+			$precio = $precioVariable ? null : round((float) $post["precio"], 2);
+
+			if ($this->existeNombreDuplicado($nombre, $idproducto))
+				throw new Exception("Ya existe otro producto registrado con ese nombre.|Atencion|mensaje|warning", 1);
+		}
 
 		list($sucursalesPermitidas, $seleccion) = $this->resolverSucursales($post, $idadministrador, $precioVariable, $servicio === 1);
 
@@ -371,7 +409,8 @@ class Productos extends BaseClass {
 		if (!$esAdmin) {
 			$sucursalesProducto = array_column($this->getSucursalesDeProducto($idproducto), "idsucursal");
 			$sucursalesUsuario = array_column($this->getSucursalesUsuario($idadministrador), "idsucursal");
-			if (!empty(array_diff($sucursalesProducto, $sucursalesUsuario)))
+			// Sin sucursales activas el producto no es de nadie: solo un admin lo elimina.
+			if (empty($sucursalesProducto) || !empty(array_diff($sucursalesProducto, $sucursalesUsuario)))
 				throw new Exception("Este producto tambien esta asignado a sucursales a las que no tienes acceso; no puedes eliminarlo.|Atencion|mensaje|warning", 1);
 		}
 

@@ -2,6 +2,46 @@
 class BaseClass {
 	protected $claseQueries;
 
+	/**
+	 * Relee de BD el rol (admin) y el estatus del administrador en sesion.
+	 *
+	 * $_SESSION["infoUsuario"] se llena una sola vez en el login, y todos los
+	 * permisos (tieneAccesoModulo, sucursales visibles) consultan "admin" desde
+	 * ahi: sin esto, a quien se le quita el rol de administrador o se le da de
+	 * baja conserva el acceso total mientras su sesion siga viva. Las opciones
+	 * y sucursales asignadas no necesitan esto porque ya se leen de BD.
+	 *
+	 * Se ejecuta una vez por peticion (la primera clase de modulo que se crea).
+	 */
+	protected function refrescarSesionAdministrador($con) {
+		static $refrescado = false;
+		if ($refrescado || empty($con) || !isset($_SESSION["infoUsuario"]["idadministrador"]))
+			return;
+		$refrescado = true;
+
+		$sentencia = mysqli_prepare($con, "select admin, status from tadministradores where idadministrador = ?");
+		$idadministrador = (int) $_SESSION["infoUsuario"]["idadministrador"];
+		mysqli_stmt_bind_param($sentencia, "i", $idadministrador);
+		mysqli_stmt_execute($sentencia);
+		$fila = mysqli_fetch_assoc(mysqli_stmt_get_result($sentencia));
+		mysqli_stmt_close($sentencia);
+
+		if (empty($fila) || (int) $fila["status"] !== 1) {
+			unset($_SESSION["infoUsuario"]);
+			session_destroy();
+			header("Content-Type: application/json", true, 401);
+			echo json_encode(array(
+				"result" => "error",
+				"titulo" => "Sin acceso",
+				"mensaje" => "Tu usuario fue desactivado. Vuelve a iniciar sesion.",
+				"texto" => "Tu usuario fue desactivado. Vuelve a iniciar sesion.",
+			));
+			exit;
+		}
+
+		$_SESSION["infoUsuario"]["admin"] = (int) $fila["admin"];
+	}
+
 	public function __call($method, $args) {
 		try {
 			if (method_exists($this, $method)) {

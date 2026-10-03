@@ -16,7 +16,19 @@ if (!$sucursales->tieneAccesoModulo($idadministrador)) {
 $id = (int) ($_GET["id"] ?? 0);
 $editando = ($id > 0);
 
-$sucursal = ($editando) ? $sucursales->getSucursal($id) : array(
+if ($editando) {
+	try {
+		$sucursal = $sucursales->getSucursal($id);
+	} catch (Exception $e) {
+		echo '<div class="alert alert-warning m-2 text-center">No se encontro la sucursal.</div>';
+		exit;
+	}
+} elseif (!$sucursales->esAdminSesion()) {
+	echo '<div class="alert alert-warning m-2 text-center">Solo un administrador puede dar de alta sucursales.</div>';
+	exit;
+}
+
+$sucursal = ($editando) ? $sucursal : array(
 	"idsucursal" => 0,
 	"nombre" => "",
 	"ticket_negocio" => "",

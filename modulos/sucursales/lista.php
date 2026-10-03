@@ -54,6 +54,7 @@ $lista = $sucursales->getSucursales();
 								>
 									<i class="fas fa-edit"></i>
 								</a>
+								<?php if ($sucursales->esAdminSesion()) { ?>
 								<a
 									href="javascript:;"
 									onclick="eliminar('eliminarSucursal','sucursales','<?= (int) $s["idsucursal"] ?>')"
@@ -63,6 +64,7 @@ $lista = $sucursales->getSucursales();
 								>
 									<i class="fas fa-trash"></i>
 								</a>
+								<?php } ?>
 							</td>
 						</tr>
 					<?php } ?>

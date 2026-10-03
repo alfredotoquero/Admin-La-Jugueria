@@ -16,7 +16,16 @@ if (!$usuarios->tieneAccesoModulo($idadministrador)) {
 $id = (int) ($_GET["id"] ?? 0);
 $editando = ($id > 0);
 
-$usuario = ($editando) ? $usuarios->getUsuario($id) : array(
+if ($editando) {
+	try {
+		$usuario = $usuarios->getUsuario($id);
+	} catch (Exception $e) {
+		echo '<div class="alert alert-warning m-2 text-center">No se encontro el usuario.</div>';
+		exit;
+	}
+}
+
+$usuario = ($editando) ? $usuario : array(
 	"idadministrador" => 0,
 	"nombre" => "",
 	"paterno" => "",
@@ -96,6 +105,7 @@ $claseRequeridaPassword = ($editando) ? "form-control" : "form-control requerido
 				</div>
 			</div>
 
+			<?php if ($usuarios->puedeAsignarAdmin()) { ?>
 			<div class="form-row">
 				<div class="form-group col-12">
 					<div class="custom-control custom-checkbox">
@@ -104,6 +114,7 @@ $claseRequeridaPassword = ($editando) ? "form-control" : "form-control requerido
 					</div>
 				</div>
 			</div>
+			<?php } ?>
 
 			<div id="bloqueAccesos" <?= ((int) $usuario["admin"] === 1) ? 'style="display:none;"' : "" ?>>
 				<div class="form-row">
