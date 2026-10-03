@@ -525,9 +525,14 @@ function num2letras($num, $fem = false, $dec = true) {
 			$n2 = $num[1];
 			$t = ' ' . $matdec[$n2] . $t;
 		}
-		$n = $num[0];
+		// Centenas del grupo. Los grupos de 1 o 2 digitos vienen rellenados con
+		// espacios ("  75"); en PHP 8 " " == 0 es falso (en PHP 7 era verdadero),
+		// asi que sin el (int) se colaba un "cientos" al inicio: $75 salia como
+		// "CIENTOS SETENTA Y CINCO".
+		$n = (int) $num[0];
 		if ($n == 1) {
-			$t = ' ciento' . $t;
+			// 100 exacto es "cien"; de 101 a 199, "ciento ...".
+			$t = (substr($num, 1) == '00') ? ' cien' : ' ciento' . $t;
 		} elseif ($n == 5) {
 			$t = ' ' . $matunisub[$n] . 'ient' . $subcent . $t;
 		} elseif ($n != 0) {
