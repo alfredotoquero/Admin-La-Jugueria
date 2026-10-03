@@ -9,6 +9,14 @@ class Sucursales extends BaseClass {
 	// Tope del fondo de caja para no desbordar el decimal de la columna.
 	const FONDO_MAXIMO = 999999.99;
 
+	// Tamanos de impresion de ticket soportados (ancho en mm => etiqueta). El
+	// punto de venta arma el ticket a 42 columnas en 72 mm y a 32 en 58 mm.
+	const TAMANOS_IMPRESION = array(
+		72 => "72 MM (ROLLO DE 80 MM)",
+		58 => "58 MM",
+	);
+	const TAMANO_IMPRESION_DEFAULT = 72;
+
 	private $con, $isDebugger;
 	protected $claseQueries;
 
@@ -86,6 +94,7 @@ class Sucursales extends BaseClass {
 			s.ticket_rfc,
 			s.ticket_regimen,
 			s.ticket_nombreimpresora,
+			s.ticket_tamanoimpresion,
 			s.fondoinicial,
 			coalesce(f.ultimofolio, 0) + 1 as siguiente_folio,
 			coalesce(f.ultimofolio_corte, 0) + 1 as siguiente_folio_corte,
@@ -138,6 +147,18 @@ class Sucursales extends BaseClass {
 
 		if (!esRfcValido(trim($post["ticket_rfc"])))
 			throw new Exception("El RFC no tiene un formato valido.|Atencion|mensaje|warning", 1);
+	}
+
+	/**
+	 * Valida el tamano de impresion capturado contra los soportados.
+	 */
+	private function resolverTamanoImpresion($post) {
+		$tamano = (int) ($post["ticket_tamanoimpresion"] ?? 0);
+
+		if (!array_key_exists($tamano, self::TAMANOS_IMPRESION))
+			throw new Exception("Selecciona un tamano de impresion valido.|Atencion|mensaje|warning", 1);
+
+		return $tamano;
 	}
 
 	/**
@@ -290,15 +311,16 @@ class Sucursales extends BaseClass {
 			throw new Exception("Ya existe una sucursal registrada con ese nombre.|Atencion|mensaje|warning", 1);
 
 		$fondoInicial = $this->resolverFondoInicial($post);
+		$tamanoImpresion = $this->resolverTamanoImpresion($post);
 		$ultimosFolios = $this->resolverUltimosFolios($post);
 
 		mysqli_begin_transaction($this->con);
 		try {
 			$query = "
 			insert into tsucursales
-				(nombre, ticket_negocio, ticket_calle, ticket_numero, ticket_colonia, ticket_codigopostal, ticket_ciudad, ticket_nombre, ticket_rfc, ticket_regimen, ticket_nombreimpresora, fondoinicial, status)
+				(nombre, ticket_negocio, ticket_calle, ticket_numero, ticket_colonia, ticket_codigopostal, ticket_ciudad, ticket_nombre, ticket_rfc, ticket_regimen, ticket_nombreimpresora, ticket_tamanoimpresion, fondoinicial, status)
 			values
-				(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+				(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 			";
 			$params = array(
 				$nombre,
@@ -312,6 +334,7 @@ class Sucursales extends BaseClass {
 				trim($post["ticket_rfc"]),
 				trim($post["ticket_regimen"]),
 				trim($post["ticket_nombreimpresora"]),
+				$tamanoImpresion,
 				$fondoInicial,
 			);
 			$idsucursal = $this->claseQueries->executeQuery($query, $params, true, "No se pudo guardar la sucursal");
@@ -347,6 +370,7 @@ class Sucursales extends BaseClass {
 			throw new Exception("Ya existe otra sucursal registrada con ese nombre.|Atencion|mensaje|warning", 1);
 
 		$fondoInicial = $this->resolverFondoInicial($post);
+		$tamanoImpresion = $this->resolverTamanoImpresion($post);
 		$ultimosFolios = $this->resolverUltimosFolios($post, $idsucursal);
 
 		mysqli_begin_transaction($this->con);
@@ -364,6 +388,7 @@ class Sucursales extends BaseClass {
 				ticket_rfc = ?,
 				ticket_regimen = ?,
 				ticket_nombreimpresora = ?,
+				ticket_tamanoimpresion = ?,
 				fondoinicial = ?
 			where
 				idsucursal = ?
@@ -380,6 +405,7 @@ class Sucursales extends BaseClass {
 				trim($post["ticket_rfc"]),
 				trim($post["ticket_regimen"]),
 				trim($post["ticket_nombreimpresora"]),
+				$tamanoImpresion,
 				$fondoInicial,
 				$idsucursal,
 			);
