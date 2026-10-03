@@ -1,4 +1,7 @@
 <?php
+// Solo para usuarios con sesion iniciada: devuelve HTML armado con datos del cliente.
+include($_SERVER["DOCUMENT_ROOT"] . "/includes/session.php");
+include_once($_SERVER["DOCUMENT_ROOT"] . "/includes/seguridad2.php");
 // Incluir la función renderTable
 include_once 'componentes/renderTabla.php';
 

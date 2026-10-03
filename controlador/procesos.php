@@ -45,15 +45,6 @@ class Procesos {
 
 		switch ($modulo1) {
 
-			// Caso real de arquitectura genérica (no es lógica de negocio):
-			// alimenta el selector "Cambiar Empresa" del navbar en home.php.
-			// Devuelve las demás empresas (tenants) a las que el usuario
-			// autenticado también tiene acceso con el mismo correo.
-			case 'cargarEmpresasAsignadas':
-				$permisos = new Permisos($this->con);
-				$respuesta = $permisos->getEmpresasPorUsuario($parametros['idempresa'] ?? 0, $parametros['correo'] ?? '');
-				break;
-
 			// EJEMPLO: agrega aquí tus módulos de negocio. El patrón usado en
 			// este proyecto es un archivo controlador/procesos_[modulo].php
 			// por módulo, que a su vez hace su propio switch (normalmente

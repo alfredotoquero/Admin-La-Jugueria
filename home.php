@@ -125,7 +125,7 @@ $v = "?v=1.0.0";
 		Se le pasan estos data-attributes como "configuración" que lee al
 		cargar.
 	-->
-	<script id="funciones" data-idusuario="<?= $_SESSION["infoUsuario"]["idadministrador"] ?? "" ?>" data-ultimo_acceso="<?= $_SESSION["ultimo_acceso"] ?? "" ?>" data-debugger="<?= $_SESSION["infoUsuario"]["debugger"] ?? 0 ?>" data-modulo1="<?= $_GET["modulo1"] ?? "" ?>" data-modulo2="<?= $_GET["modulo2"] ?? "" ?>" src="/js/funciones.js<?= $v ?? "" ?>"></script>
+	<script id="funciones" data-idusuario="<?= (int) ($_SESSION["infoUsuario"]["idadministrador"] ?? 0) ?>" data-ultimo_acceso="<?= htmlspecialchars($_SESSION["ultimo_acceso"] ?? "", ENT_QUOTES, "UTF-8") ?>" data-debugger="<?= (int) ($_SESSION["infoUsuario"]["debugger"] ?? 0) ?>" data-modulo1="<?= htmlspecialchars($_GET["modulo1"] ?? "", ENT_QUOTES, "UTF-8") ?>" data-modulo2="<?= htmlspecialchars($_GET["modulo2"] ?? "", ENT_QUOTES, "UTF-8") ?>" src="/js/funciones.js<?= $v ?? "" ?>"></script>
 </head>
 
 <body id="page-top">
