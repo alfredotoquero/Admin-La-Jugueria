@@ -34,6 +34,17 @@ try {
 			}
 			$respuesta = array("result" => "success", "data" => $datos);
 			break;
+		case "getTicketReporteVentas":
+			$filtros = array(
+				"tipofiltro" => $_POST["tipofiltro"] ?? "rango",
+				"idsucursal" => $_POST["idsucursal"] ?? 0,
+				"idusuario" => $_POST["idusuario"] ?? 0,
+				"fechadesde" => $_POST["fechadesde"] ?? "",
+				"fechahasta" => $_POST["fechahasta"] ?? "",
+			);
+			$ticket = $ventas->getTicketReporteVentas($idadministrador, $filtros, $_POST["idsucursalimpresora"] ?? 0);
+			$respuesta = array("result" => "success", "data" => $ticket);
+			break;
 		default:
 			$respuesta = array(
 				"result" => "error",

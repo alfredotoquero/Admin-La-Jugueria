@@ -30,6 +30,8 @@ $sucursal = ($editando) ? $sucursales->getSucursal($id) : array(
 	"ticket_regimen" => "",
 	"ticket_nombreimpresora" => "",
 	// Mismo default que la columna en tsucursales.
+	"ticket_tamanoimpresion" => Sucursales::TAMANO_IMPRESION_DEFAULT,
+	// Mismo default que la columna en tsucursales.
 	"fondoinicial" => "1000.00",
 	"siguiente_folio" => 1,
 	"siguiente_folio_corte" => 1,
@@ -138,9 +140,20 @@ $proceso = ($editando) ? "editarSucursal" : "agregarSucursal";
 			</div>
 
 			<div class="form-row">
-				<div class="form-group col-12">
+				<div class="form-group col-12 col-md-8">
 					<label>Nombre de la impresora <strong class="text-danger">*</strong></label>
 					<input type="text" name="ticket_nombreimpresora" class="form-control requerido mayusculas" value="<?= formatearLabel($sucursal["ticket_nombreimpresora"]) ?>">
+				</div>
+				<div class="form-group col-12 col-md-4">
+					<label>Tamano de impresion <strong class="text-danger">*</strong></label>
+					<select name="ticket_tamanoimpresion" class="form-control requerido">
+						<?php foreach (Sucursales::TAMANOS_IMPRESION as $tamano => $etiqueta) { ?>
+							<option value="<?= (int) $tamano ?>" <?= ((int) $sucursal["ticket_tamanoimpresion"] === $tamano) ? "selected" : "" ?>><?= formatearLabel($etiqueta) ?></option>
+						<?php } ?>
+					</select>
+					<small class="form-text text-muted">
+						Ancho de impresion de la impresora de tickets de esta sucursal.
+					</small>
 				</div>
 			</div>
 

@@ -78,8 +78,16 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 
 	<div id="divLista"></div>
 
+	<script src="/vendor/qz-tray/qz-tray.js"></script>
+	<script src="/js/impresion.js"></script>
 	<script>
 		var opcionesUsuarioVentas = [];
+
+		// Sucursales del usuario: con el filtro "TODAS" se elige desde cual se
+		// imprime (se usan su impresora y su tamano de impresion).
+		var sucursalesImpresionVentas = <?= json_encode(array_map(function ($s) {
+			return array("idsucursal" => (int) $s["idsucursal"], "nombre" => $s["nombre"]);
+		}, $sucursalesUsuario)) ?>;
 
 		$(document).ready(function () {
 			recargarLista();
@@ -163,18 +171,73 @@ $fechaDesdeDefault = date("Y-m-d", strtotime("-6 days"));
 			}, "divLista");
 		}
 
+		/**
+		 * Manda el reporte directo a la impresora de tickets (QZ Tray), con la
+		 * impresora y el tamano de impresion de la sucursal filtrada. Con
+		 * "TODAS" se pregunta desde cual sucursal se imprime, salvo que el
+		 * usuario solo tenga una.
+		 */
 		function imprimirReporteVentas() {
-			var tipofiltro = $("#filtroTipoFecha").val();
-			var params = $.param({
-				tipofiltro: tipofiltro,
-				idsucursal: $("#filtroSucursal").val(),
-				idusuario: $("#filtroUsuario").val(),
-				fechadesde: $("#filtroFechaDesde").val(),
-				fechahasta: (tipofiltro === "corte") ? "" : $("#filtroFechaHasta").val(),
-				sucursalnombre: $("#filtroSucursal option:selected").text(),
-				usuarionombre: $("#filtroUsuario option:selected").text()
+			var idsucursal = parseInt($("#filtroSucursal").val(), 10);
+
+			if (idsucursal > 0 || sucursalesImpresionVentas.length <= 1) {
+				enviarReporteVentasImpresora(0);
+				return;
+			}
+
+			var opciones = {};
+			sucursalesImpresionVentas.forEach(function (s) {
+				opciones[s.idsucursal] = s.nombre;
 			});
-			window.open("/modulos/ventas/imprimir.php?" + params, "_blank");
+
+			Swal.fire({
+				title: "Imprimir reporte",
+				text: "Selecciona la sucursal desde la que estas imprimiendo; se usara su impresora y su tamano de impresion.",
+				input: "select",
+				inputOptions: opciones,
+				inputPlaceholder: "SUCURSAL",
+				showCancelButton: true,
+				confirmButtonText: "Imprimir",
+				cancelButtonText: "Cancelar",
+				inputValidator: function (valor) {
+					return valor ? null : "Selecciona una sucursal.";
+				}
+			}).then(function (resultado) {
+				if (resultado.isConfirmed)
+					enviarReporteVentasImpresora(resultado.value);
+			});
+		}
+
+		function enviarReporteVentasImpresora(idsucursalimpresora) {
+			var tipofiltro = $("#filtroTipoFecha").val();
+
+			$.ajax({
+				type: "POST",
+				url: "/modulos/ventas/procesos.php",
+				dataType: "json",
+				data: {
+					proceso: "getTicketReporteVentas",
+					idsucursalimpresora: idsucursalimpresora,
+					tipofiltro: tipofiltro,
+					idsucursal: $("#filtroSucursal").val(),
+					idusuario: $("#filtroUsuario").val(),
+					fechadesde: $("#filtroFechaDesde").val(),
+					fechahasta: (tipofiltro === "corte") ? "" : $("#filtroFechaHasta").val()
+				},
+				success: function (resp) {
+					if (resp.result !== "success") {
+						Swal.fire({ icon: resp.icono || "warning", title: resp.titulo || "Atencion", text: resp.mensaje });
+						return;
+					}
+					imprimirTicket(resp.data.impresora, resp.data.datos).then(function (enviado) {
+						if (enviado)
+							toastr.success("Reporte enviado a la impresora " + resp.data.impresora + ".");
+					});
+				},
+				error: function () {
+					Swal.fire({ icon: "error", title: "Error", text: "No se pudo generar el reporte. Intenta de nuevo." });
+				}
+			});
 		}
 	</script>
 <?php } ?>
